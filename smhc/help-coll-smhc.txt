@@ -1,0 +1,3 @@
+[unknown-topo-param]
+ERROR: An unknown topology parameter '%s' was passed to SMHC.
+The component will not be enabled.
