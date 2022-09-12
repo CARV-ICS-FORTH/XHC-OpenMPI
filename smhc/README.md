@@ -79,4 +79,5 @@ Tune pipeline (4x2KB)
 `$ mpirun --mca coll basic,libnbc,tuned,smhc --mca coll_smhc_priority 100 --mca coll_smhc_pipeline_stages 4 --mca coll_smhc_chunk_size 2K <application>`
 
 ---
-Contact: George Katevenis, ICS Forth, gkatev@ics.forth.gr
+Contact: George Katevenis, gkatev@ics.forth.gr  
+Foundation for Research and Technology - Hellas (FORTH), Institute of Computer Science

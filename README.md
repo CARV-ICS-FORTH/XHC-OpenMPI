@@ -12,3 +12,6 @@ studies for intra-node MPI collectives, as those where described in the paper:
 The implementations are bundled as components for OpenMPI's `coll` MCA framework. More information
 about them, as well as instruction on how to build and use them, are available inside the 
 respective directories (smhc, xbrc).
+
+The `osu-micro-benchmarks` directory contains the micro-benchmarks suite used for the experiments
+in the paper, along with our modifications, as well as some basic settings and usage examples.
