@@ -1,0 +1,38 @@
+[bad-locality-param]
+WARNING: Locality '%s' in hierarchy parameter to coll/xhc is unrecognizable.
+The component won't load.
+#
+[bad-chunk-size-param]
+WARNING: Malformed chunk size parameter '%s' passed to coll/xhc.
+The component won't load.
+#
+[xhc-module-save-error]
+WARNING: XHC encountered an error while saving its predecessor's module.
+  The component will not be enabled.
+#
+[xhc-init-failed]
+WARNING: XHC component initialization failed, with error code %d.
+Errno has value: %d (%s)
+#
+[xhc-diff-arch]
+WARNING: coll/xhc does not currently support heterogeneity.
+  The component will not be enabled.
+
+  Local host %s, arch 0x%08x
+  Remote host %s, arch 0x%08x
+#
+[xhc-no-smsc]
+WARNING: coll/xhc requires opal/smsc support, but no active module was found.
+  Only MPI_Barrier will be enabled.
+#
+[xhc-smsc-no-map]
+WARNING: coll/xhc optimally requires a "CAN_MAP"-capable opal/smsc module.
+  (All)reduce will be disabled, bcast might exhibit reduced performance.
+#
+[xhc-hier-order-error]
+WARNING: coll/xhc errored out while checking the order of the
+  hierarchy's localities. This is a bug, please report it.
+#
+[xhc-no-common-locality]
+WARNING: An XHC module was enabled but not all ranks of the communicator
+  share a locality common to all. The component won't load.

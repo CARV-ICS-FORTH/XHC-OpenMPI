@@ -47,4 +47,4 @@ Example command line:
 
 ---
 Contact: George Katevenis, gkatev@ics.forth.gr  
-Foundation for Research and Technology - Hellas (FORTH), Institute of Computer Science
+Computer Architecture and VLSI Systems (CARV) Laboratory, ICS Forth

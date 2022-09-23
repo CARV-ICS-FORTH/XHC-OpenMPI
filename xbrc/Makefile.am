@@ -1,3 +1,13 @@
+#
+# Copyright (c) 2021-2022 Computer Architecture and VLSI Systems (CARV)
+#                         Laboratory, ICS Forth. All rights reserved.
+# $COPYRIGHT$
+#
+# Additional copyrights may follow
+#
+# $HEADER$
+#
+
 AM_CPPFLAGS = $(coll_xbrc_CPPFLAGS)
 
 sources = \

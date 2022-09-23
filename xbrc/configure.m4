@@ -1,3 +1,13 @@
+#
+# Copyright (c) 2021-2022 Computer Architecture and VLSI Systems (CARV)
+#                         Laboratory, ICS Forth. All rights reserved.
+# $COPYRIGHT$
+#
+# Additional copyrights may follow
+#
+# $HEADER$
+#
+
 AC_DEFUN([MCA_ompi_coll_xbrc_CONFIG],[
 	AC_CONFIG_FILES([ompi/mca/coll/xbrc/Makefile])
 	

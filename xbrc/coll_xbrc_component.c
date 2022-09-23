@@ -1,3 +1,13 @@
+/*
+ * Copyright (c) 2021-2022 Computer Architecture and VLSI Systems (CARV)
+ *                         Laboratory, ICS Forth. All rights reserved.
+ * $COPYRIGHT$
+ *
+ * Additional copyrights may follow
+ *
+ * $HEADER$
+ */
+
 #include "ompi_config.h"
 
 #include "mpi.h"

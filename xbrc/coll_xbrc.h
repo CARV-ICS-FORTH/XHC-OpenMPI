@@ -1,3 +1,13 @@
+/*
+ * Copyright (c) 2021-2022 Computer Architecture and VLSI Systems (CARV)
+ *                         Laboratory, ICS Forth. All rights reserved.
+ * $COPYRIGHT$
+ *
+ * Additional copyrights may follow
+ *
+ * $HEADER$
+ */
+
 #ifndef MCA_COLL_XBRC_EXPORT_H
 #define MCA_COLL_XBRC_EXPORT_H
 

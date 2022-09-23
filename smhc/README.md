@@ -14,7 +14,7 @@ operations using shared memory**, at SC-18 -- https://dl.acm.org/doi/10.5555/329
 
 ### Process
 
-1. Place the component's folder and its contents inside OpenMPI's `coll` framework(`ompi/mca/coll`)
+1. Place the component's folder and its contents inside OpenMPI's `coll` framework (`ompi/mca/coll`)
 
 2. Run `autogen.pl`, so that it will generate the required build files for the new component
 
@@ -80,4 +80,4 @@ Tune pipeline (4x2KB)
 
 ---
 Contact: George Katevenis, gkatev@ics.forth.gr  
-Foundation for Research and Technology - Hellas (FORTH), Institute of Computer Science
+Computer Architecture and VLSI Systems (CARV) Laboratory, ICS Forth

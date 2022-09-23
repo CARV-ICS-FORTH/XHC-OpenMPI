@@ -47,30 +47,6 @@ MPI_Allreduce with integrity check:
 $ mpirun mpi/collective/osu_allreduce_integrity
 ```
 
-## Paper experiments
-
-Some/most of the MPI-related settings for the experiments in the paper:
-
-```
-OpenMPI v5.0.0rc6, UCX v.12.1, UCC v1.0.0, 
-Built with XPMEM support
-
-Map to slot, bind to core, only using 1 hyperthread/core
-
-pml=ob1, or for coll/tuned pml=ucx
-btl=sm,self
-smsc=xpmem
-
-pml_ucx_tls=any
-UCX_TLS=xpmem,self
-```
-
-Finally, make sure that the implementation of MPI_Barrier performs as good as possible, since it
-affects the degree to which the different processes enter the collective at the same time. Ideally,
-the component providing this performant barrier is a distinct one, different from the one being
-measured, and is the same for all benchmarks. This condition is most important for small messages,
-but can/will also affect large-message performance as well.
-
 ---
 Contact: George Katevenis, gkatev@ics.forth.gr  
-Foundation for Research and Technology - Hellas (FORTH), Institute of Computer Science
+Computer Architecture and VLSI Systems (CARV) Laboratory, ICS Forth
