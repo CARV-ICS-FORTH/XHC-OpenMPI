@@ -46,5 +46,5 @@ Example command line:
 `$ mpirun --mca coll basic,libnbc,tuned,xbrc --mca coll_xbrc_priority 100 <application>`
 
 ---
-Contact: George Katevenis, gkatev@ics.forth.gr  
+Contact: George Katevenis (gkatev@ics.forth.gr), Manolis Ploumidis (ploumid@ics.forth.gr)  
 Computer Architecture and VLSI Systems (CARV) Laboratory, ICS Forth

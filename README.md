@@ -1,8 +1,10 @@
 # XPMEM-based Hierarchical Collectives for OpenMPI
 
 This repository holds material related to the XHC collectives implementation and to the 
-corresponding research paper: **A framework for hierarchical single-copy MPI collectives on 
-multicore nodes**.
+related research paper:
+
+**A framework for hierarchical single-copy MPI collectives on multicore nodes**  
+*by* George Katevenis, Manolis Ploumidis, and Manolis Marazakis
 
 ### Contents
 
@@ -15,7 +17,7 @@ intra-node MPI collectives, as those where described in the paper
 	- Shared Memory Hierarchical Collectives (SMHC)
 	- XPMEM-Based Reduction Collective (XBRC)
 
-- XB, a complementary component to XHC, to aid accurate micro-benchmarking
+- XB, a complementary component to XHC, to aid in accurate micro-benchmarking
 
 - Our modified OSU micro-benchmarks suite used for the experiments in the paper
 
@@ -24,5 +26,5 @@ framework. More information about the components, as well as instruction on how 
 them, are available inside their respective directories.
 
 ---
-Contact: George Katevenis, gkatev@ics.forth.gr  
+Contact: George Katevenis (gkatev@ics.forth.gr), Manolis Ploumidis (ploumid@ics.forth.gr)  
 Computer Architecture and VLSI Systems (CARV) Laboratory, ICS Forth

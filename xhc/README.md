@@ -325,5 +325,5 @@ UCX_TLS=xpmem,self
 ```
 
 ---
-Contact: George Katevenis, gkatev@ics.forth.gr  
+Contact: George Katevenis (gkatev@ics.forth.gr), Manolis Ploumidis (ploumid@ics.forth.gr)  
 Computer Architecture and VLSI Systems (CARV) Laboratory, ICS Forth

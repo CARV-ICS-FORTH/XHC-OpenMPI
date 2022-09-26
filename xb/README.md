@@ -60,5 +60,5 @@ Benchmarking XHC itself, with XB:
 `$ mpirun --mca coll basic,libnbc,xb,xhc --mca coll_xhc_priority 90 --mca coll_xb_priority 95 <application>`
 
 ---
-Contact: George Katevenis, gkatev@ics.forth.gr  
+Contact: George Katevenis (gkatev@ics.forth.gr), Manolis Ploumidis (ploumid@ics.forth.gr)  
 Computer Architecture and VLSI Systems (CARV) Laboratory, ICS Forth
