@@ -20,7 +20,7 @@ obtained via Open MPI's integrated mappings.
 	
 	Example of a 3-level XHC hierarchy (numa+socket+node configuration):
 	
-	![Example of 3-level XHC hierarchy](resources/xhc-hierarchy.png)
+	![Example of 3-level XHC hierarchy](resources/xhc-hierarchy.svg)
 
 * Support for both **single-copy** and **copy-in-copy-out** data transportation.
 	- Switchover at static but configurable message size.
