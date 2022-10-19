@@ -4,8 +4,8 @@ This repository holds material related to the XHC collectives implementation and
 related research paper:
 
 **A framework for hierarchical single-copy MPI collectives on multicore nodes**,  
-*by George Katevenis, Manolis Ploumidis, and Manolis Marazakis*,  
-@ IEEE Cluster 2022, Heidelberg, Germany.
+*George Katevenis, Manolis Ploumidis, and Manolis Marazakis*,  
+IEEE Cluster 2022, Heidelberg, Germany.
 
 Available on IEEE Xplore: https://ieeexplore.ieee.org/document/9912729
 
