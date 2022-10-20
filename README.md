@@ -28,6 +28,15 @@ All collectives' implementations are bundled as common components for OpenMPI's 
 framework. More information about the components, as well as instruction on how to build and use 
 them, are available inside their respective directories.
 
+### Acknowledgment
+
+We thankfully acknowledge the support of the European Commission and the 
+Greek General Secretariat for Research and Innovation under the EuroHPC 
+Programme through the DEEP-SEA project (GA 955606). National 
+contributions from the involved state members (including the Greek 
+General Secretariat for Research and Innovation) match the EuroHPC 
+funding.
+
 ---
 Contact: George Katevenis (gkatev@ics.forth.gr), Manolis Ploumidis (ploumid@ics.forth.gr)  
 Computer Architecture and VLSI Systems (CARV) Laboratory, ICS Forth
