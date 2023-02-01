@@ -1,4 +1,4 @@
-# A framework for hierarchical single-copy MPI collectives on multicore nodes
+# XHC: A framework for hierarchical single-copy MPI collectives on multicore nodes
 
 This branch holds material related to the IEEE Cluster 2022 paper and the *XPMEM-based Hierarchical Collectives* (XHC) component:
 
