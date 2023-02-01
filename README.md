@@ -6,15 +6,14 @@ component for OpenMPI, as well as related software & accompanying material.
 ### Contents
 
 The various content around our work with XHC and OpenMPI collectives is
-organized in multiple branches in the current repository.
+organized in multiple **branches** in the current repository.
 
-- 
-[ieee-cluster-22](https://github.com/CARV-ICS-FORTH/XHC-OpenMPI/tree/ieee-cluster-22)
-branch: Software snapshot and material related to our IEEE Cluster 2022 paper
-(see below)
+- [ieee-cluster-22](https://github.com/CARV-ICS-FORTH/XHC-OpenMPI/tree/ieee-cluster-22):
+Software snapshot and material related to our IEEE Cluster 2022 paper(see
+below)
 
-- [xhc-fresh](https://github.com/CARV-ICS-FORTH/XHC-OpenMPI/tree/xhc-fresh)
-branch: The latest version of XHC and accompanying software
+- [xhc-fresh](https://github.com/CARV-ICS-FORTH/XHC-OpenMPI/tree/xhc-fresh):
+The latest version of XHC and accompanying software
 
 ### Publications
 
