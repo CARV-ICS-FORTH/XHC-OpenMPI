@@ -7,10 +7,10 @@ and of its accompanying software.
 
 Within this branch you will find:
 
-- The source code of the XHC component ([xhc](xhc))
-- XB, a complementary component to XHC, to aid in accurate micro-benchmarking ([xb](xb))
-- Our modified OSU micro-benchmarks suite we use for experiments pertaining
-to intra-node MPI collectives ([osu-micro-benchmarks](osu-micro-benchmarks))
+- The source code of the **XHC** component
+- **XB**, a complementary component to XHC, to aid in accurate micro-benchmarking
+- Our modified **OSU micro-benchmarks** suite we use for experiments pertaining
+to intra-node MPI collectives
 
 See the README file in each respective directory for more information.
 
