@@ -1,7 +1,6 @@
-# XPMEM-based Hierarchical Collectives for OpenMPI
+# A framework for hierarchical single-copy MPI collectives on multicore nodes
 
-This repository holds material related to the XHC collectives implementation and the 
-related research paper:
+This branch holds material related to the IEEE Cluster 2022 paper and the *XPMEM-based Hierarchical Collectives* (XHC) component:
 
 **A framework for hierarchical single-copy MPI collectives on multicore nodes**,  
 *George Katevenis, Manolis Ploumidis, and Manolis Marazakis*,  
@@ -11,7 +10,7 @@ Available on IEEE Xplore: https://ieeexplore.ieee.org/document/9912729
 
 ### Contents
 
-Within the repository you will find:
+Within this branch is contained:
 
 - The source code for the XHC component, upon which work the paper is based
 
@@ -38,5 +37,6 @@ General Secretariat for Research and Innovation) match the EuroHPC
 funding.
 
 ---
+
 Contact: George Katevenis (gkatev@ics.forth.gr), Manolis Ploumidis (ploumid@ics.forth.gr)  
 Computer Architecture and VLSI Systems (CARV) Laboratory, ICS Forth
