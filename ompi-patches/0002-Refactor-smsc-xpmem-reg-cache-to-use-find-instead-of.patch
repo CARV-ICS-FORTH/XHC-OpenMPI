@@ -1,0 +1,452 @@
+From b6f937a64a18d4739d2ebdba5efa9fbe708a49a7 Mon Sep 17 00:00:00 2001
+From: George Katevenis <gkatev@ics.forth.gr>
+Date: Tue, 22 Nov 2022 09:46:26 +0200
+Subject: [PATCH 2/3] Refactor smsc/xpmem reg cache to use find() instead of
+ iterate()
+
+Signed-off-by: George Katevenis <gkatev@ics.forth.gr>
+---
+ opal/mca/smsc/xpmem/smsc_xpmem_component.c |   9 +-
+ opal/mca/smsc/xpmem/smsc_xpmem_internal.h  |   8 +-
+ opal/mca/smsc/xpmem/smsc_xpmem_module.c    | 256 +++++++++++++++--------------
+ 3 files changed, 136 insertions(+), 137 deletions(-)
+
+diff --git a/opal/mca/smsc/xpmem/smsc_xpmem_component.c b/opal/mca/smsc/xpmem/smsc_xpmem_component.c
+index 59ecdc2..8d11d11 100644
+--- a/opal/mca/smsc/xpmem/smsc_xpmem_component.c
++++ b/opal/mca/smsc/xpmem/smsc_xpmem_component.c
+@@ -1,6 +1,8 @@
+ /* -*- Mode: C; c-basic-offset:4 ; indent-tabs-mode:nil -*- */
+ /*
+  * Copyright (c) 2021      Google, Inc. All rights reserved.
++ * Copyright (c) 2022      Computer Architecture and VLSI Systems (CARV)
++ *                         Laboratory, ICS Forth. All rights reserved.
+  * $COPYRIGHT$
+  *
+  * Additional copyrights may follow
+@@ -76,10 +78,7 @@ static int mca_smsc_xpmem_component_open(void)
+ 
+ static int mca_smsc_xpmem_component_close(void)
+ {
+-    if (mca_smsc_xpmem_module.vma_module) {
+-        OBJ_RELEASE(mca_smsc_xpmem_module.vma_module);
+-    }
+-
++    /* nothing to do */
+     return OPAL_SUCCESS;
+ }
+ 
+@@ -161,7 +160,5 @@ static mca_smsc_module_t *mca_smsc_xpmem_component_enable(void)
+     mca_smsc_xpmem_component.log_attach_align
+         = opal_min(opal_max(mca_smsc_xpmem_component.log_attach_align, 12), 25);
+ 
+-    mca_smsc_xpmem_module.vma_module = mca_rcache_base_vma_module_alloc();
+-
+     return &mca_smsc_xpmem_module.super;
+ }
+diff --git a/opal/mca/smsc/xpmem/smsc_xpmem_internal.h b/opal/mca/smsc/xpmem/smsc_xpmem_internal.h
+index ad767f7..ce2daef 100644
+--- a/opal/mca/smsc/xpmem/smsc_xpmem_internal.h
++++ b/opal/mca/smsc/xpmem/smsc_xpmem_internal.h
+@@ -1,6 +1,8 @@
+ /* -*- Mode: C; c-basic-offset:4 ; indent-tabs-mode:nil -*- */
+ /*
+  * Copyright (c) 2021      Google, Inc. All rights reserved.
++ * Copyright (c) 2022      Computer Architecture and VLSI Systems (CARV)
++ *                         Laboratory, ICS Forth. All rights reserved.
+  * $COPYRIGHT$
+  *
+  * Additional copyrights may follow
+@@ -42,6 +44,8 @@ struct mca_smsc_xpmem_endpoint_t {
+     xpmem_apid_t apid;
+     /** maximum address we can attach to on this peer */
+     uintptr_t address_max;
++    /** cache of xpmem attachments created using this endpoint */
++    mca_rcache_base_vma_module_t *vma_module;
+ };
+ 
+ typedef struct mca_smsc_xpmem_endpoint_t mca_smsc_xpmem_endpoint_t;
+@@ -67,10 +71,6 @@ typedef struct mca_smsc_xpmem_component_t mca_smsc_xpmem_component_t;
+ 
+ struct mca_smsc_xpmem_module_t {
+     mca_smsc_module_t super;
+-
+-    /** cache of xpmem attachments. this cache holds attachments for all peers. the registrations
+-     * are differentiated by the alloc_base which is set to the endpoint. */
+-    mca_rcache_base_vma_module_t *vma_module;
+ };
+ 
+ typedef struct mca_smsc_xpmem_module_t mca_smsc_xpmem_module_t;
+diff --git a/opal/mca/smsc/xpmem/smsc_xpmem_module.c b/opal/mca/smsc/xpmem/smsc_xpmem_module.c
+index 6a3444a..1ae4f01 100644
+--- a/opal/mca/smsc/xpmem/smsc_xpmem_module.c
++++ b/opal/mca/smsc/xpmem/smsc_xpmem_module.c
+@@ -7,6 +7,8 @@
+  *                         reserved.
+  * Copyright (c) 2020-2021 Google, LLC. All rights reserved.
+  * Copyright (c) 2021      Nanook Consulting.  All rights reserved.
++ * Copyright (c) 2022-2023 Computer Architecture and VLSI Systems (CARV)
++ *                         Laboratory, ICS Forth. All rights reserved.
+  * $COPYRIGHT$
+  *
+  * Additional copyrights may follow
+@@ -29,149 +31,161 @@ OBJ_CLASS_INSTANCE(mca_smsc_xpmem_endpoint_t, opal_object_t, NULL, NULL);
+ 
+ mca_smsc_endpoint_t *mca_smsc_xpmem_get_endpoint(opal_proc_t *peer_proc)
+ {
+-    mca_smsc_xpmem_endpoint_t *endpoint = OBJ_NEW(mca_smsc_xpmem_endpoint_t);
+-    if (OPAL_UNLIKELY(NULL == endpoint)) {
+-        return NULL;
+-    }
+-
+-    endpoint->super.proc = peer_proc;
+-
+     int rc;
+     size_t modex_size;
+     mca_smsc_xpmem_modex_t *modex;
++
+     OPAL_MODEX_RECV_IMMEDIATE(rc, &mca_smsc_xpmem_component.super.smsc_version,
+                               &peer_proc->proc_name, (void **) &modex, &modex_size);
+     if (OPAL_UNLIKELY(OPAL_SUCCESS != rc)) {
+-        OBJ_RELEASE(endpoint);
+         return NULL;
+     }
+ 
+-    endpoint->apid = xpmem_get(modex->seg_id, XPMEM_RDWR, XPMEM_PERMIT_MODE, (void *) 0666);
+-    endpoint->address_max = modex->address_max;
+-
+-    return &endpoint->super;
+-}
+-
+-struct mca_smsc_xpmem_cleanup_reg_ctx_t {
+-    mca_smsc_xpmem_endpoint_t *endpoint;
+-    opal_list_t *registrations;
+-};
+-
+-typedef struct mca_smsc_xpmem_cleanup_reg_ctx_t mca_smsc_xpmem_cleanup_reg_ctx_t;
+-
+-struct mca_smsc_xpmem_check_reg_ctx_t {
+-    mca_smsc_xpmem_endpoint_t *endpoint;
+-    mca_rcache_base_registration_t **reg;
+-    uintptr_t base;
+-    uintptr_t bound;
+-};
+-typedef struct mca_smsc_xpmem_check_reg_ctx_t mca_smsc_xpmem_check_reg_ctx_t;
+-
+-static int mca_smsc_xpmem_check_reg(mca_rcache_base_registration_t *reg, void *ctx)
+-{
+-    mca_smsc_xpmem_check_reg_ctx_t *xpmem_ctx = (mca_smsc_xpmem_check_reg_ctx_t *) ctx;
+-
+-    if (reg->alloc_base != (void *) xpmem_ctx->endpoint) {
+-        /* ignore this registration */
+-        return OPAL_SUCCESS;
++    mca_smsc_xpmem_endpoint_t *endpoint = OBJ_NEW(mca_smsc_xpmem_endpoint_t);
++    if (OPAL_UNLIKELY(NULL == endpoint)) {
++        return NULL;
+     }
+ 
+-    xpmem_ctx->reg[0] = reg;
++    endpoint->super.proc = peer_proc;
++    endpoint->address_max = modex->address_max;
+ 
+-    if (xpmem_ctx->bound <= (uintptr_t) reg->bound && xpmem_ctx->base >= (uintptr_t) reg->base) {
+-        if (0 == opal_atomic_fetch_add_32(&reg->ref_count, 1)) {
+-            /* registration is being deleted by a thread in sm_return_registration. the
+-             * VMA tree implementation will block in mca_rcache_delete until we finish
+-             * iterating over the VMA tree so it is safe to just ignore this registration
+-             * and continue. */
+-            xpmem_ctx->reg[0] = NULL;
+-            return OPAL_SUCCESS;
+-        }
+-        return 1;
++    endpoint->vma_module = mca_rcache_base_vma_module_alloc();
++    if (OPAL_UNLIKELY(NULL == endpoint->vma_module)) {
++        OBJ_RELEASE(endpoint);
++        return NULL;
+     }
+ 
+-    if (MCA_RCACHE_FLAGS_INVALID & opal_atomic_fetch_or_32(&reg->flags, MCA_RCACHE_FLAGS_INVALID)) {
+-        /* another thread has already marked this registration as invalid. ignore and continue. */
+-        xpmem_ctx->reg[0] = NULL;
+-        return OPAL_SUCCESS;
++    endpoint->apid = xpmem_get(modex->seg_id, XPMEM_RDWR, XPMEM_PERMIT_MODE, (void *) 0666);
++
++    if(OPAL_UNLIKELY(-1 == endpoint->apid)) {
++        OBJ_RELEASE(endpoint->vma_module);
++        OBJ_RELEASE(endpoint);
++        return NULL;
+     }
+ 
+-    /* let the caller know we found an overlapping registration that can be coalesced into
+-     * the requested interval. the caller will remove the last reference and delete the
+-     * registration. */
+-    return 2;
++    return &endpoint->super;
+ }
+ 
+-/* look up the remote pointer in the peer rcache and attach if
+- * necessary */
++/* look up the remote pointer in the peer rcache and attach if necessary */
+ void *mca_smsc_xpmem_map_peer_region(mca_smsc_endpoint_t *endpoint, uint64_t flags,
+                                      void *remote_ptr, size_t size, void **local_ptr)
+ {
+     mca_smsc_xpmem_endpoint_t *xpmem_endpoint = (mca_smsc_xpmem_endpoint_t *) endpoint;
+-    mca_rcache_base_vma_module_t *vma_module = mca_smsc_xpmem_module.vma_module;
+-    uint64_t attach_align = 1 << mca_smsc_xpmem_component.log_attach_align;
++    mca_rcache_base_vma_module_t *vma_module = xpmem_endpoint->vma_module;
++    uintptr_t attach_align = 1 << mca_smsc_xpmem_component.log_attach_align;
+     mca_rcache_base_registration_t *reg = NULL;
+-    mca_smsc_xpmem_check_reg_ctx_t check_ctx = {.endpoint = xpmem_endpoint, .reg = &reg};
+     xpmem_addr_t xpmem_addr;
+     uintptr_t base, bound;
+     int rc;
+ 
++    // base is the first byte of the region, bound is the last (inclusive)
+     base = OPAL_DOWN_ALIGN((uintptr_t) remote_ptr, attach_align, uintptr_t);
+-    bound = OPAL_ALIGN((uintptr_t) remote_ptr + size, attach_align, uintptr_t);
++    bound = OPAL_ALIGN((uintptr_t) remote_ptr + size, attach_align, uintptr_t) - 1;
+     if (OPAL_UNLIKELY(bound > xpmem_endpoint->address_max)) {
+         bound = xpmem_endpoint->address_max;
+     }
+ 
+-    check_ctx.base = base;
+-    check_ctx.bound = bound;
+-
+-    /* several segments may match the base pointer */
+-    rc = mca_rcache_base_vma_iterate(vma_module, (void *) base, bound - base, true,
+-                                     mca_smsc_xpmem_check_reg, &check_ctx);
+-    if (2 == rc) {
+-        bound = bound < (uintptr_t) reg->bound ? (uintptr_t) reg->bound : bound;
+-        base = base > (uintptr_t) reg->base ? (uintptr_t) reg->base : base;
+-        mca_smsc_xpmem_unmap_peer_region(reg);
+-        reg = NULL;
++    rc = mca_rcache_base_vma_find(vma_module, (void *) base, bound - base + 1, &reg);
++    assert(OPAL_SUCCESS == rc);
++
++    if (reg) {
++        int32_t old_ref_count = opal_atomic_fetch_add_32(&reg->ref_count, 1);
++
++        if (0 == old_ref_count) {
++            /* Registration is being deleted by another thread
++             * in mca_smsc_xpmem_unmap_peer_region, ignore it. */
++            reg = NULL;
++        }
++    } else {
++        /* If there is a registration that overlaps with the requested range, but
++         * does not fully cover it, we destroy it and make in its place a new one
++         * that covers both the existing and the new range. */
++
++        /* The search settings below will also match areas that would be right next to
++         * the new one (technically not overlapping, but uniteable under a single area).
++         * Whether we want this is debatable (re-establishing an XPMEM attachment can
++         * incur significant overhead). The current choice matches legacy behaviour. */
++
++        // Ideally, we would want a find() method capable of partial matching
++        uintptr_t search_base[] = {base, bound, base - 1, bound + 1};
++        for (size_t i = 0; i < sizeof(search_base)/sizeof(search_base[0]); i++) {
++            mca_rcache_base_registration_t *ov_reg = NULL;
++
++            rc = mca_rcache_base_vma_find(vma_module, (void *) search_base[i], 1, &ov_reg);
++            assert(OPAL_SUCCESS == rc);
++
++            if (ov_reg) {
++                /* Found an overlapping area. Set the invalid flag, to mark the deletion
++                 * of this old registration (will eventually take place in unmap_peer_region).
++                 * If another thread has already marked deletion, do nothing. */
++
++                uint32_t old_flags = opal_atomic_fetch_or_32(
++                    (volatile opal_atomic_int32_t *) &ov_reg->flags, MCA_RCACHE_FLAGS_INVALID);
++
++                if (!(old_flags & MCA_RCACHE_FLAGS_INVALID)) {
++                    base = opal_min(base, (uintptr_t) ov_reg->base);
++                    bound = opal_max(bound, (uintptr_t) ov_reg->bound);
++
++                    /* Unmap will decrement the ref count and dealloc the attachment if it's
++                     * not in use. Okay to do even though we didn't increment the ref count
++                     * when we found the reg, as there is a superfluous ref present from when
++                     * we initialized ref_count to 2 instead of 1. */
++                    mca_smsc_xpmem_unmap_peer_region(ov_reg);
++                }
++            }
++        }
+     }
+ 
+     if (NULL == reg) {
+         reg = OBJ_NEW(mca_rcache_base_registration_t);
+-        if (OPAL_LIKELY(NULL != reg)) {
+-            /* stick around for awhile */
+-            reg->ref_count = 2;
+-            reg->base = (unsigned char *) base;
+-            reg->bound = (unsigned char *) bound;
+-            reg->alloc_base = (void *) endpoint;
++        if (OPAL_LIKELY(NULL == reg)) {
++            return NULL;
++        }
++
++        reg->ref_count = 2;
++        reg->flags = flags;
++        reg->base = (unsigned char *) base;
++        reg->bound = (unsigned char *) bound;
++        reg->alloc_base = (void *) endpoint;
+ 
+ #if defined(HAVE_SN_XPMEM_H)
+-            xpmem_addr.id = xpmem_endpoint->apid;
++        xpmem_addr.id = xpmem_endpoint->apid;
+ #else
+-            xpmem_addr.apid = xpmem_endpoint->apid;
++        xpmem_addr.apid = xpmem_endpoint->apid;
+ #endif
+-            xpmem_addr.offset = base;
++        xpmem_addr.offset = base;
++
++        opal_output_verbose(MCA_BASE_VERBOSE_INFO, opal_smsc_base_framework.framework_output,
++                            "mca_smsc_xpmem_map_peer_region: creating region mapping "
++                            "for endpoint %p address range %p-%p",
++                            (void *) endpoint, reg->base, reg->bound);
++
++        reg->rcache_context = xpmem_attach(xpmem_addr, bound - base + 1, NULL);
++        if (OPAL_UNLIKELY((void *) -1 == reg->rcache_context)) {
++            uintptr_t old_bound = bound;
++
++            /* retry with the page as upper bound */
++            bound = OPAL_ALIGN((uintptr_t) remote_ptr + size, opal_getpagesize(), uintptr_t) - 1;
++            reg->bound = (unsigned char *) bound;
+ 
+             opal_output_verbose(MCA_BASE_VERBOSE_INFO, opal_smsc_base_framework.framework_output,
+-                                "mca_smsc_xpmem_map_peer_region: creating region mapping "
+-                                "for endpoint %p address range %p-%p",
+-                                endpoint, reg->base, reg->bound);
++                                "mca_smsc_xpmem_map_peer_region: region mapping "
++                                "for endpoint %p address range %p-%p failed. "
++                                "retrying with range %p-%p",
++                                (void *) endpoint, reg->base, (void *) old_bound,
++                                reg->base, reg->bound);
+ 
+-            reg->rcache_context = xpmem_attach(xpmem_addr, bound - base, NULL);
++            reg->rcache_context = xpmem_attach(xpmem_addr, bound - base + 1, NULL);
+             if (OPAL_UNLIKELY((void *) -1 == reg->rcache_context)) {
+-                /* retry with the page as upper bound */
+-                bound = OPAL_ALIGN((uintptr_t) remote_ptr + size, opal_getpagesize(), uintptr_t);
+-                reg->bound = (unsigned char *) bound;
+-                reg->rcache_context = xpmem_attach(xpmem_addr, bound - base, NULL);
+-                if (OPAL_UNLIKELY((void *) -1 == reg->rcache_context)) {
+-                    OBJ_RELEASE(reg);
+-                    return NULL;
+-                }
++                OBJ_RELEASE(reg);
++                return NULL;
+             }
++        }
+ 
+-            opal_memchecker_base_mem_defined(reg->rcache_context, bound - base);
++        opal_memchecker_base_mem_defined(reg->rcache_context, bound - base + 1);
+ 
+-            mca_rcache_base_vma_insert(vma_module, reg, 0);
+-        }
++        rc = mca_rcache_base_vma_insert(vma_module, reg, 0);
++        assert(OPAL_SUCCESS == rc);
+     }
+ 
+     opal_atomic_wmb();
+@@ -184,7 +198,7 @@ void *mca_smsc_xpmem_map_peer_region(mca_smsc_endpoint_t *endpoint, uint64_t fla
+ void mca_smsc_xpmem_unmap_peer_region(void *ctx)
+ {
+     mca_rcache_base_registration_t *reg = (mca_rcache_base_registration_t *) ctx;
+-    mca_rcache_base_vma_module_t *vma_module = mca_smsc_xpmem_module.vma_module;
++    mca_smsc_xpmem_endpoint_t *endpoint = (mca_smsc_xpmem_endpoint_t *) reg->alloc_base;
+     int32_t ref_count;
+ 
+     ref_count = opal_atomic_add_fetch_32(&reg->ref_count, -1);
+@@ -192,55 +206,44 @@ void mca_smsc_xpmem_unmap_peer_region(void *ctx)
+         opal_output_verbose(MCA_BASE_VERBOSE_INFO, opal_smsc_base_framework.framework_output,
+                             "mca_smsc_xpmem_unmap_peer_region: deleting region mapping for "
+                             "endpoint %p address range %p-%p",
+-                            reg->alloc_base, reg->base, reg->bound);
++                            (void *) endpoint, reg->base, reg->bound);
+ #if OPAL_ENABLE_DEBUG
+-        int ret = mca_rcache_base_vma_delete(vma_module, reg);
++        int ret = mca_rcache_base_vma_delete(endpoint->vma_module, reg);
+         assert(OPAL_SUCCESS == ret);
+ #else
+-        (void) mca_rcache_base_vma_delete(vma_module, reg);
++        (void) mca_rcache_base_vma_delete(endpoint->vma_module, reg);
+ #endif
+-        opal_memchecker_base_mem_noaccess(reg->rcache_context, (uintptr_t)(reg->bound - reg->base));
++
++        opal_memchecker_base_mem_noaccess(reg->rcache_context, (uintptr_t)(reg->bound - reg->base + 1));
+         (void) xpmem_detach(reg->rcache_context);
++
+         OBJ_RELEASE(reg);
+     }
+ }
+ 
+-static int mca_smsc_xpmem_endpoint_rcache_cleanup(mca_rcache_base_registration_t *reg, void *ctx)
++static int mca_smsc_xpmem_endpoint_rcache_entry_cleanup(mca_rcache_base_registration_t *reg, void *ctx)
+ {
+-    mca_smsc_xpmem_cleanup_reg_ctx_t *cleanup_ctx = (mca_smsc_xpmem_cleanup_reg_ctx_t *) ctx;
+-    if (reg->alloc_base == (void *) cleanup_ctx->endpoint) {
+-        opal_list_append(cleanup_ctx->registrations, &reg->super.super);
+-    }
+-
++    mca_smsc_xpmem_unmap_peer_region(reg);
+     return OPAL_SUCCESS;
+ }
+ 
+ static void mca_smsc_xpmem_cleanup_endpoint(mca_smsc_xpmem_endpoint_t *endpoint)
+ {
+-    mca_rcache_base_registration_t *reg;
+-    opal_list_t registrations;
+-    mca_smsc_xpmem_cleanup_reg_ctx_t cleanup_ctx = {.endpoint = endpoint,
+-                                                    .registrations = &registrations};
+-
+     opal_output_verbose(MCA_BASE_VERBOSE_INFO, opal_smsc_base_framework.framework_output,
+-                        "mca_smsc_xpmem_cleanup_endpoint: cleaning up endpoint %p", endpoint);
+-
+-    OBJ_CONSTRUCT(&registrations, opal_list_t);
++                        "mca_smsc_xpmem_cleanup_endpoint: cleaning up endpoint %p", (void *) endpoint);
+ 
+-    /* clean out the registration cache */
+-    (void) mca_rcache_base_vma_iterate(mca_smsc_xpmem_module.vma_module, NULL, (size_t) -1, true,
+-                                       mca_smsc_xpmem_endpoint_rcache_cleanup,
+-                                       (void *) &cleanup_ctx);
+     opal_output_verbose(MCA_BASE_VERBOSE_INFO, opal_smsc_base_framework.framework_output,
+                         "mca_smsc_xpmem_cleanup_endpoint: deleting %" PRIsize_t " region mappings",
+-                        opal_list_get_size(&registrations));
+-    while (NULL
+-           != (reg = (mca_rcache_base_registration_t *) opal_list_remove_first(&registrations))) {
+-        mca_smsc_xpmem_unmap_peer_region(reg);
+-    }
+-    OBJ_DESTRUCT(&registrations);
++                        endpoint->vma_module->tree.tree_size);
+ 
++    /* clean out the registration cache */
++    (void) mca_rcache_base_vma_iterate(endpoint->vma_module, NULL, (size_t) -1, true,
++                                       mca_smsc_xpmem_endpoint_rcache_entry_cleanup, NULL);
++
++    OBJ_RELEASE(endpoint->vma_module);
+     xpmem_release(endpoint->apid);
++
++    endpoint->vma_module = NULL;
+     endpoint->apid = 0;
+ }
+ 
+@@ -251,7 +254,7 @@ void mca_smsc_xpmem_return_endpoint(mca_smsc_endpoint_t *endpoint)
+ }
+ 
+ /* memcpy is faster at larger sizes but is undefined if the
+-   pointers are aliased (TODO -- readd alias check) */
++   pointers are aliased (TODO -- read alias check) */
+ static inline void mca_smsc_xpmem_memmove(void *dst, void *src, size_t size)
+ {
+     while (size > 0) {
+@@ -286,7 +289,6 @@ int mca_smsc_xpmem_copy_from(mca_smsc_endpoint_t *endpoint, void *local_address,
+ 
+     void *remote_ptr, *ctx;
+ 
+-    struct timespec start, stop;
+     ctx = mca_smsc_xpmem_map_peer_region(endpoint, /*flags=*/0, remote_address, size, &remote_ptr);
+     mca_smsc_xpmem_memmove(local_address, remote_ptr, size);
+ 
+-- 
+1.8.3.1
+

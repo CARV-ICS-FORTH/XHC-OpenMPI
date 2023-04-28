@@ -1,0 +1,120 @@
+# Lines beginning with '#' are comments
+
+# Lookup in the LLC (RFO)
+CHA LLC_LOOKUP 0xFF 0x1BC8 RFO
+CHA LLC_LOOKUP 0x01 0x1BC8 RFO_MISS
+CHA LLC_LOOKUP 0xFE 0x1BC8 _RFO_HIT
+
+# Lookup in the LLC (READ)
+CHA LLC_LOOKUP 0xFE 0x1BD9 READ_HIT
+CHA LLC_LOOKUP 0x01 0x1BD9 READ_MISS
+CHA LLC_LOOKUP 0x0E 0x1BD9 READ_SF_HIT
+
+# Lookup in the LLC found line in this state (or in case of I, didn't find the line)
+CHA LLC_LOOKUP 0x01 0x1FFF I
+CHA LLC_LOOKUP 0x10 0x1FFF S
+CHA LLC_LOOKUP 0x20 0x1FFF E
+CHA LLC_LOOKUP 0x40 0x1FFF M
+CHA LLC_LOOKUP 0x80 0x1FFF F
+CHA LLC_LOOKUP 0x02 0x1FFF SF_S
+CHA LLC_LOOKUP 0x04 0x1FFF SF_E
+CHA LLC_LOOKUP 0x08 0x1FFF SF_H
+
+# Cross-core snoops issued by the CHA (inside socket)
+CHA CORE_SNP 0x11 REMOTE_ONE
+CHA CORE_SNP 0x12 _REMOTE_GTONE
+CHA CORE_SNP 0x21 EXT_ONE
+CHA CORE_SNP 0x22 EXT_GTONE
+CHA CORE_SNP 0x41 CORE_ONE
+CHA CORE_SNP 0x42 CORE_GTONE
+CHA CORE_SNP 0x81 EVICT_ONE
+CHA CORE_SNP 0x82 EVICT_GTONE
+# CHA CORE_SNP 0xF1 ANY_ONE
+# CHA CORE_SNP 0xF2 ANY_GTONE
+
+# Events beginning with '_' are experimental. XSNP is taken from the
+# SKX manual. It's not present in the ICX manual, but appears to work.
+# Responses from cores to the CHA, for previously issued cross-core snoops
+CHA _XSNP_RESP 0x21 _EXT_RSP_HIT_FSE
+CHA _XSNP_RESP 0x22 _EXT_RSPS_FWDFE
+CHA _XSNP_RESP 0x24 _EXT_RSPI_FWDFE
+CHA _XSNP_RESP 0x28 _EXT_RSPS_FWDM
+CHA _XSNP_RESP 0x30 _EXT_RSPI_FWDM
+CHA _XSNP_RESP 0x41 _CORE_RSP_HITFSE
+CHA _XSNP_RESP 0x42 _CORE_RSPS_FWDFE
+CHA _XSNP_RESP 0x44 _CORE_RSPI_FWDFE
+CHA _XSNP_RESP 0x48 _CORE_RSPS_FWDM
+CHA _XSNP_RESP 0x50 _CORE_RSPI_FWDM
+CHA _XSNP_RESP 0x81 _EVICT_RSP_HITFSE
+CHA _XSNP_RESP 0x82 _EVICT_RSPS_FWDFE
+CHA _XSNP_RESP 0x84 _EVICT_RSPI_FWDFE
+CHA _XSNP_RESP 0x84 _EVICT_RSPS_FWDM
+CHA _XSNP_RESP 0x90 _EVICT_RSPI_FWDM
+
+# These show responses to cross-core snoops. But only some types?
+# Is this supposed to replace XSNP_RESP on ICX?
+CHA SNOOP_RSP_MISC 0x01 M_TO_I_RSP_I_FWD_M
+CHA SNOOP_RSP_MISC 0x02 M_TO_I_RSP_DATA_M
+CHA SNOOP_RSP_MISC 0x04 RSP_I_FWD_M_PTL_HIT_SF
+CHA SNOOP_RSP_MISC 0x08 RSP_I_FWD_M_PTL_HIT_LLC
+CHA SNOOP_RSP_MISC 0x10 PULL_DATA_PLT_HIT_SF
+CHA SNOOP_RSP_MISC 0x20 PULL_DATA_PLT_HIT_LLC
+
+# Read/Write memory operations (Column Address Strobe, not Compare And Swap!)
+IMC CAS_COUNT 0x0F RD
+IMC CAS_COUNT 0x30 WR
+
+# Responses of cores to cross-core snoops from the CHA
+CORE CORE_SNOOP_RESPONSE 0x01 MISS
+CORE CORE_SNOOP_RESPONSE 0x02 I_HIT_FSE
+CORE CORE_SNOOP_RESPONSE 0x04 S_HIT_FSE
+CORE CORE_SNOOP_RESPONSE 0x08 S_FWD_M
+CORE CORE_SNOOP_RESPONSE 0x10 I_FWD_M
+CORE CORE_SNOOP_RESPONSE 0x20 I_FWD_FE
+CORE CORE_SNOOP_RESPONSE 0x40 S_FWD_FE
+
+# Disabled, way too noisy, e.g. due to polling of the cache_eng sync flag
+# CORE MEM_LOAD_RETIRED 0x01 L1_HIT
+# CORE MEM_LOAD_RETIRED 0x08 L1_MISS
+
+# Core operations that looked up the L2, and their result
+# CORE L2_RQSTS 0xE1 ALL_DEMAND_DATA_RD
+# CORE L2_RQSTS 0x27 ALL_DEMAND_MISS
+# CORE L2_RQSTS 0xE2 ALL_RFO
+CORE L2_RQSTS 0xC1 DEMAND_DATA_RD_HIT
+CORE L2_RQSTS 0x21 DEMAND_DATA_RD_MISS
+CORE L2_RQSTS 0xC2 RFO_HIT
+CORE L2_RQSTS 0x22 RFO_MISS
+
+# Completed load operations that hit/missed the L2
+CORE MEM_LOAD_RETIRED 0x02 L2_HIT
+CORE MEM_LOAD_RETIRED 0x10 L2_MISS
+
+# Operations that couldn't be satisfied inside the core,
+# and went off it, to higher levels (e.g. CHA)
+CORE OFFCORE_REQUESTS 0x01 DEMAND_DATA_RD
+CORE OFFCORE_REQUESTS 0x04 DEMAND_RFO
+
+# Operations that accessed the highest level cache (L3/LLC)
+CORE LONGEST_LAT_CACHE 0x4F REFERENCE
+CORE LONGEST_LAT_CACHE 0x41 MISS
+
+# Completed load operations that hit/missed the L3/LLC
+CORE MEM_LOAD_RETIRED 0x04 L3_HIT
+CORE MEM_LOAD_RETIRED 0x20 L3_MISS
+
+# Operations that couldn't be satisfied inside the core,
+# and went off it, to higher levels (e.g. CHA)
+CORE OFFCORE_REQUESTS 0x10 L3_MISS_DEMAND_DATA_RD
+
+# Completed load operations that hit in L3 + extra information about
+# whether the data was readily available in the L3, or cross-core
+# snoops with/without data forwarding were necessary
+CORE MEM_LOAD_L3_HIT_RETIRED 0x01 XSNP_MISS
+CORE MEM_LOAD_L3_HIT_RETIRED 0x02 XSNP_NO_FWD
+CORE MEM_LOAD_L3_HIT_RETIRED 0x04 XSNP_FWD
+CORE MEM_LOAD_L3_HIT_RETIRED 0x08 XSNP_NONE
+
+# L2 line insertions and evictions
+CORE L2_LINES_OUT 0xFF
+CORE L2_LINES_IN 0x1F

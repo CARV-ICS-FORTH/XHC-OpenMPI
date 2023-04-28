@@ -1,0 +1,40 @@
+diff --git a/coll_xhc_bcast.c b/coll_xhc_bcast.c
+index 488fbcf..2f39443 100644
+--- a/coll_xhc_bcast.c
++++ b/coll_xhc_bcast.c
+@@ -19,6 +19,18 @@
+ 
+ #include "coll_xhc.h"
+ 
++static inline void clwb(volatile void *addr) {
++	// _mm_clwb((void *) addr);
++	__asm__ __volatile__("clwb (%0)" : : "r" (addr) : "memory");
++}
++
++static inline void clwb_range(void *addr, size_t len) {
++	for(char *p = (char *) ((uintptr_t) addr & ~63);
++			p < (char *) addr + len; p += 64) {
++		clwb(p);
++	}
++}
++
+ /* When dynamic leadership is enabled, the first rank of each
+  * xhc comm to join the collective will become its leader */
+ static void xhc_bcast_try_leader(xhc_comm_t *comms, int comm_count,
+@@ -219,8 +231,14 @@ int mca_coll_xhc_bcast(void *buf, int count, ompi_datatype_t *datatype, int root
+ 	xhc_bcast_try_leader(comms, comm_count, peer_info, rank, root, pvt_seq);
+ 	
+ 	// No chunking for now... TODO?
+-	if(rank == root && do_cico)
+-		memcpy(local_cico, buf, bytes_total);
++	if(rank == root) {
++		if(do_cico) {
++			memcpy(local_cico, buf, bytes_total);
++			xhc_atomic_wmb();
++		}
++		
++		clwb_range((do_cico ? local_cico : buf), bytes_total);
++	}
+ 	
+ 	if(!do_cico) {
+ 		int err = xhc_copy_expose_region(buf, bytes_total, &region_data);

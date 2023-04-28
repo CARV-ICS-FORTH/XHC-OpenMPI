@@ -1,0 +1,46 @@
+#
+# Copyright (c) 2021-2023 Computer Architecture and VLSI Systems (CARV)
+#                         Laboratory, ICS Forth. All rights reserved.
+# $COPYRIGHT$
+#
+# Additional copyrights may follow
+#
+# $HEADER$
+#
+
+[bad-hierarchy-item]
+WARNING (coll/xhc)
+Unrecognized locality definition '%s' in hierarchy parameter string '%s'
+The component won't load
+#
+[bad-chunk-size-item]
+WARNING (coll/xhc)
+Malformed item '%s' in chunk size parameter string '%s'
+The component won't load
+#
+[xhc-init-failed]
+WARNING (coll/xhc)
+Component initialization failed with error code %d
+Errno: %d (%s)
+#
+[xhc-diff-arch]
+WARNING (coll/xhc)
+Heterogeneity is not currently supported
+  Local host %s, arch 0x%08x
+  Remote host %s, arch 0x%08x
+The component will not be enabled
+#
+[xhc-no-smsc]
+WARNING (coll/xhc)
+OPAL/smsc support is required, but no active module was found
+Only MPI_Barrier will be enabled
+#
+[xhc-smsc-no-map]
+WARNING (coll/xhc)
+An opal/smsc module capable of CAN_MAP is optimally required
+Some operations will be disabled, others might exhibit reduced performance
+#
+[xhc-no-common-locality]
+WARNING (coll/xhc)
+There is no locality common to all ranks in the communicator
+The component won't load

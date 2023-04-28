@@ -1,0 +1,430 @@
+diff --git a/coll_xhc.c b/coll_xhc.c
+index 4b13f92..7d73b65 100644
+--- a/coll_xhc.c
++++ b/coll_xhc.c
+@@ -27,7 +27,7 @@
+ #include "coll_xhc.h"
+ 
+ static int xhc_make_comms(ompi_communicator_t *ompi_comm,
+-	xhc_peer_info_t *peer_info, xhc_comm_t **comms_dst,
++	xhc_peer_info_t *peer_info, xhc_data_t *data, xhc_comm_t **comms_dst,
+ 	int *comm_count_dst, xhc_loc_t *hierarchy, int hierarchy_len);
+ static void xhc_destroy_comms(xhc_comm_t *comms, int comm_count);
+ 
+@@ -111,8 +111,8 @@ int xhc_lazy_init(xhc_module_t *module, ompi_communicator_t *comm) {
+ 	/* An XHC communicator is created for each level of the hierarchy.
+ 	 * The hierachy must be in an order of most-specific to most-general. */
+ 	
+-	ret = xhc_make_comms(comm, peer_info, &data->comms, &data->comm_count,
+-		module->hierarchy, module->hierarchy_len);
++	ret = xhc_make_comms(comm, peer_info, data, &data->comms,
++		&data->comm_count, module->hierarchy, module->hierarchy_len);
+ 	if(ret != OMPI_SUCCESS)
+ 		RETURN_WITH_ERROR(return_code, ret, end);
+ 	
+@@ -166,6 +166,9 @@ void xhc_deinit(mca_coll_xhc_module_t *module) {
+ 		if(data->comm_count >= 0)
+ 			xhc_destroy_comms(data->comms, data->comm_count);
+ 		
++		// No unlink, OMPI issue #11123
++		opal_shmem_segment_detach(&data->local_ctrl_ds);
++		
+ 		free(data->comms);
+ 		free(data);
+ 	}
+@@ -188,7 +191,7 @@ void xhc_deinit(mca_coll_xhc_module_t *module) {
+ }
+ 
+ static int xhc_make_comms(ompi_communicator_t *ompi_comm,
+-		xhc_peer_info_t *peer_info, xhc_comm_t **comms_dst,
++		xhc_peer_info_t *peer_info, xhc_data_t *data, xhc_comm_t **comms_dst,
+ 		int *comm_count_dst, xhc_loc_t *hierarchy, int hierarchy_len) {
+ 	
+ 	int ompi_rank = ompi_comm_rank(ompi_comm);
+@@ -237,6 +240,8 @@ static int xhc_make_comms(ompi_communicator_t *ompi_comm,
+ 			.comm_ctrl = NULL,
+ 			.member_ctrl = NULL,
+ 			
++			.cico_buffer = NULL,
++			
+ 			.ctrl_ds = (opal_shmem_ds_t) {0}
+ 		};
+ 		
+@@ -331,7 +336,8 @@ static int xhc_make_comms(ompi_communicator_t *ompi_comm,
+ 		// Create shared structs
+ 		if(ompi_rank == xc->manager_rank) {
+ 			size_t ctrl_len = sizeof(xhc_comm_ctrl_t) + smsc_reg_size
+-				+ xc->size * sizeof(xhc_member_ctrl_t);
++				+ xc->size * sizeof(xhc_member_ctrl_t)
++				+ 8192 + mca_coll_xhc_component.cico_max;
+ 			
+ 			char *ctrl_base = xhc_shmem_create(&xc->ctrl_ds, ctrl_len,
+ 				ompi_comm, "ctrl", comm_count);
+@@ -345,6 +351,11 @@ static int xhc_make_comms(ompi_communicator_t *ompi_comm,
+ 			xc->comm_ctrl = (void *) ctrl_base;
+ 			xc->member_ctrl = (void *) (ctrl_base
+ 				+ sizeof(xhc_comm_ctrl_t) + smsc_reg_size);
++			
++			xc->cico_buffer = (void *) (ctrl_base
++				+ sizeof(xhc_comm_ctrl_t) + smsc_reg_size
++				+ xc->size * sizeof(xhc_member_ctrl_t)
++				+ 8192);
+ 		}
+ 		
+ 		ret = ompi_comm->c_coll->coll_allgather(&xc->ctrl_ds,
+@@ -365,6 +376,11 @@ static int xhc_make_comms(ompi_communicator_t *ompi_comm,
+ 			xc->comm_ctrl = (void *) ctrl_base;
+ 			xc->member_ctrl = (void *) (ctrl_base
+ 				+ sizeof(xhc_comm_ctrl_t) + smsc_reg_size);
++			
++			xc->cico_buffer = (void *) (ctrl_base
++				+ sizeof(xhc_comm_ctrl_t) + smsc_reg_size
++				+ xc->size * sizeof(xhc_member_ctrl_t)
++				+ 8192);
+ 		}
+ 		
+ 		xc->my_member_ctrl = &xc->member_ctrl[xc->member_id];
+@@ -389,6 +405,57 @@ static int xhc_make_comms(ompi_communicator_t *ompi_comm,
+ 	*comms_dst = comms;
+ 	*comm_count_dst = comm_count;
+ 	
++	// ----
++	// Proof of concept, for remote-reader-phenomenon remedies
++	
++	struct {
++		opal_shmem_ds_t local_ctrl_ds;
++		int n_locals;
++	} local_info;
++	
++	if(PEER_IS_LOCAL(peer_info, 0, OPAL_PROC_ON_NUMA)) {
++		for(int r = 0; r < ompi_size; r++) {
++			if(r == ompi_rank)
++				data->local_id = data->n_locals;
++			
++			data->n_locals++;
++		}
++		
++		if(ompi_rank == 0) {
++			data->local_ctrl = xhc_shmem_create(&data->local_ctrl_ds,
++				data->n_locals * sizeof(struct local_ctrl_t),
++				ompi_comm, "local_ctrl", 0);
++			if(data->local_ctrl == NULL)
++				abort();
++			
++			memset(data->local_ctrl, 0,
++				data->n_locals * sizeof(struct local_ctrl_t));
++			
++			local_info.local_ctrl_ds = data->local_ctrl_ds;
++			local_info.n_locals = data->n_locals;
++		}
++	} else
++		data->local_id = -1;
++	
++	ret = ompi_comm->c_coll->coll_bcast(&local_info,
++		sizeof(local_info), MPI_BYTE, 0, ompi_comm,
++		ompi_comm->c_coll->coll_bcast_module);
++	if(ret != OMPI_SUCCESS)
++		abort();
++	
++	data->n_locals = local_info.n_locals;
++	data->local_ctrl_ds = local_info.local_ctrl_ds;
++	
++	if(ompi_rank != 0) {
++		data->local_ctrl = xhc_shmem_attach(&data->local_ctrl_ds);
++		if(data->local_ctrl == NULL) abort();
++	}
++	
++	data->root_g_memb_joined = malloc(ompi_size * sizeof(bool));
++	if(!data->root_g_memb_joined) abort();
++	
++	// ----
++	
+ 	end:
+ 	
+ 	free(comm_ctrl_ds);
+diff --git a/coll_xhc.h b/coll_xhc.h
+index 116a085..be41901 100644
+--- a/coll_xhc.h
++++ b/coll_xhc.h
+@@ -171,6 +171,8 @@ struct mca_coll_xhc_component_t {
+ 	
+ 	char *hierarchy_mca;
+ 	char *chunk_size_mca;
++	
++	int sc_wait_mode;
+ };
+ 
+ struct mca_coll_xhc_module_t {
+@@ -215,6 +217,21 @@ struct xhc_data_t {
+ 	xhc_comm_t *comms;
+ 	int comm_count;
+ 	
++	struct local_ctrl_t {
++		// Double buffered flags
++		struct {
++			volatile xf_sig_t seq;
++			volatile xf_size_t bytes_done;
++		} __attribute__((aligned(OMPI_XHC_CTRL_ALIGN))) dat[2];
++	} __attribute__((aligned(OMPI_XHC_CTRL_ALIGN))) *local_ctrl;
++	
++	opal_shmem_ds_t local_ctrl_ds;
++	
++	int n_locals;
++	int local_id;
++	
++	bool *root_g_memb_joined;
++	
+ 	xf_sig_t pvt_coll_seq;
+ };
+ 
+@@ -278,6 +295,8 @@ struct xhc_comm_t {
+ 	xhc_comm_ctrl_t *comm_ctrl;
+ 	xhc_member_ctrl_t *member_ctrl;
+ 	
++	char *cico_buffer;
++	
+ 	opal_shmem_ds_t ctrl_ds;
+ 	
+ 	// ---
+@@ -317,8 +336,8 @@ struct xhc_comm_ctrl_t {
+ 	// "Guarded" by members' coll_seq
+ 	volatile int leader_id;
+ 	volatile int leader_rank;
+-	volatile int cico_id;
+ 	
++	volatile int cico_id;
+ 	void* volatile data_vaddr;
+ 	volatile xf_size_t bytes_ready;
+ 	
+diff --git a/coll_xhc_bcast.c b/coll_xhc_bcast.c
+index 488fbcf..6999f9f 100644
+--- a/coll_xhc_bcast.c
++++ b/coll_xhc_bcast.c
+@@ -74,14 +74,29 @@ static void xhc_bcast_children_init(xhc_comm_t *comms, int comm_count,
+ 		void *buffer, size_t bytes_ready, xhc_copy_data_t *region_data,
+ 		bool do_cico, int rank, xf_sig_t seq) {
+ 	
+-	for(int i = comm_count - 1; i >= 0; i--) {
++	bool top_down = (do_cico);
++	
++	// for(int i = comm_count - 1; i >= 0; i--) {
++	for(int i = (top_down ? comm_count - 1 : 0);
++			(top_down && i >= 0) || (!top_down && i < comm_count);
++			i += (top_down ? -1 : 1)) {
++		
+ 		xhc_comm_t *xc = &comms[i];
+ 		
+-		if(!xc->is_coll_leader)
+-			continue;
++		if(!xc->is_coll_leader) {
++			if(top_down) continue;
++			else break;
++		}
+ 		
+ 		WAIT_FLAG(&xc->comm_ctrl->coll_ack, seq - 1, 0);
+ 		
++		// ----
++		
++		if(do_cico && bytes_ready > 0)
++			memcpy(xc->cico_buffer, buffer, bytes_ready);
++		
++		// ----
++		
+ 		/* Because there is a control dependency with the loads
+ 		 * from coll_ack above and the code below, and because it
+ 		 * is a load-store one (not load-load), I declare that a
+@@ -168,6 +183,8 @@ static xhc_comm_t *xhc_bcast_src_comm(xhc_comm_t *comms, int comm_count) {
+ int mca_coll_xhc_bcast(void *buf, int count, ompi_datatype_t *datatype, int root,
+ 		ompi_communicator_t *ompi_comm, mca_coll_base_module_t *ompi_module) {
+ 	
++	// ----
++	
+ 	xhc_module_t *module = (xhc_module_t *) ompi_module;
+ 	
+ 	if(!module->init) {
+@@ -206,7 +223,12 @@ int mca_coll_xhc_bcast(void *buf, int count, ompi_datatype_t *datatype, int root
+ 	int rank = ompi_comm_rank(ompi_comm);
+ 	
+ 	bool do_cico = (bytes_total <= OMPI_XHC_CICO_MAX);
+-	void *local_cico = xhc_get_cico(peer_info, comms[0].manager_rank);
++	
++	int RR_S = mca_coll_xhc_component.sc_wait_mode;
++	bool WAIT_LARGE = (RR_S >= 0 && bytes_total >= comms[0].chunk_size);
++	
++	// void *local_cico = xhc_get_cico(peer_info, comms[0].manager_rank);
++	
+ 	void *src_buffer;
+ 	
+ 	// Only really necessary for smsc/knem
+@@ -219,8 +241,10 @@ int mca_coll_xhc_bcast(void *buf, int count, ompi_datatype_t *datatype, int root
+ 	xhc_bcast_try_leader(comms, comm_count, peer_info, rank, root, pvt_seq);
+ 	
+ 	// No chunking for now... TODO?
+-	if(rank == root && do_cico)
+-		memcpy(local_cico, buf, bytes_total);
++	/* if(rank == root) {
++		if(do_cico)
++			memcpy(local_cico, buf, bytes_total);
++	} */
+ 	
+ 	if(!do_cico) {
+ 		int err = xhc_copy_expose_region(buf, bytes_total, &region_data);
+@@ -238,15 +262,40 @@ int mca_coll_xhc_bcast(void *buf, int count, ompi_datatype_t *datatype, int root
+ 	xhc_comm_t *src_comm = xhc_bcast_src_comm(comms, comm_count);
+ 	xhc_comm_ctrl_t *src_ctrl = src_comm->comm_ctrl;
+ 	
++	// ----
++	
++	int n_locals = data->n_locals;
++	int my_local_id = data->local_id;
++	bool am_local = (my_local_id != -1);
++	
++	struct local_ctrl_t *local_ctrl = data->local_ctrl;
++	struct local_ctrl_t *my_local_ctrl = &local_ctrl[my_local_id];
++	
++	#define id_notifies(id) (RR_S == 0 || RR_S == 1 || \
++		(RR_S == 2 && (id) % 2 == 1) || (RR_S == 3 && (id) == 1))
++	
++	bool *root_g_memb_joined = data->root_g_memb_joined;
++	
++	if(WAIT_LARGE) {
++		if(am_local && id_notifies(my_local_id)) {
++			my_local_ctrl->dat[pvt_seq % 2].bytes_done = 0;
++			xhc_atomic_wmb();
++			my_local_ctrl->dat[pvt_seq % 2].seq = pvt_seq;
++		}
++		
++		if(!am_local)
++			memset(root_g_memb_joined, 0, data->n_locals * sizeof(bool));
++	}
++	
++	// ----
++	
+ 	WAIT_FLAG(&src_ctrl->coll_seq, pvt_seq, 0);
+ 	xhc_atomic_rmb();
+ 	
+-	if(!do_cico)
++	if(do_cico)
++		src_buffer = src_comm->cico_buffer;
++	else
+ 		src_buffer = src_ctrl->data_vaddr;
+-	else {
+-		src_buffer = xhc_get_cico(peer_info, src_ctrl->cico_id);
+-		if(src_buffer == NULL) return OMPI_ERR_OUT_OF_RESOURCE;
+-	}
+ 	
+ 	size_t bytes_done = 0;
+ 	size_t bytes_available = 0;
+@@ -258,6 +307,8 @@ int mca_coll_xhc_bcast(void *buf, int count, ompi_datatype_t *datatype, int root
+ 		void *data_src = (char *) src_buffer + bytes_done;
+ 		// void *data_cico_dst = (char *) local_cico + bytes_done;
+ 		
++		size_t initial_bytes_done = bytes_done;
++		
+ 		if(bytes_available < copy_size) {
+ 			do {
+ 				volatile xf_size_t *brp = &src_ctrl->bytes_ready;
+@@ -268,17 +319,52 @@ int mca_coll_xhc_bcast(void *buf, int count, ompi_datatype_t *datatype, int root
+ 			xhc_atomic_rmb();
+ 		}
+ 		
+-		/* Pipelining is not necessary on the bottom
+-		 * level, copy all available at once */
+-		if(!comms[0].is_coll_leader)
++		// -----------
++		
++		bool notified_chunk = (RR_S == 0 || initial_bytes_done == 0);
++		bool i_notify_this_chunk = (am_local && id_notifies(my_local_id)
++			&& (RR_S == 0 || bytes_done == 0));
++		
++		if(!(WAIT_LARGE && ((RR_S == 0 && notified_chunk)
++				|| (RR_S > 0 && i_notify_this_chunk)))) {
+ 			copy_size = bytes_available;
++		}
+ 		
+-		if(!do_cico) {
++		if(WAIT_LARGE && !am_local && notified_chunk) {
++			size_t bd_target = (RR_S == 0 ? bytes_done + copy_size
++				: opal_min(src_comm->chunk_size, bytes_total));
++			
++			for(int l = 1;;) {
++				if(id_notifies(l)) {
++					if(!root_g_memb_joined[l]) {
++						if(CHECK_FLAG(&local_ctrl[l].dat[pvt_seq % 2].seq,
++								pvt_seq, 0)) {
++							root_g_memb_joined[l] = true;
++						}
++					}
++					
++					if(root_g_memb_joined[l]) {
++						size_t mbd = xhc_atomic_load_size_t(&local_ctrl[l].
++							dat[pvt_seq % 2].bytes_done);
++						
++						if(mbd >= bd_target)
++							break;
++					}
++				}
++				
++				l = (l + 1) % n_locals;
++				if(l == 0) l = 1;
++			}
++		}
++		
++		// -----------
++		
++		if(do_cico)
++			memcpy(data_dst, data_src, copy_size);
++		else {
+ 			int err = xhc_copy_from(&peer_info[src_ctrl->leader_rank],
+ 				data_dst, data_src, copy_size, src_ctrl->access_token);
+ 			if(err != 0) return OMPI_ERROR;
+-		} else {
+-			memcpy(data_dst, data_src, copy_size);
+ 		}
+ 		
+ 		bytes_done += copy_size;
+@@ -286,6 +372,13 @@ int mca_coll_xhc_bcast(void *buf, int count, ompi_datatype_t *datatype, int root
+ 		
+ 		// -----------
+ 		
++		if(WAIT_LARGE && notified_chunk && i_notify_this_chunk) {
++			xhc_atomic_store_size_t(&my_local_ctrl->
++				dat[pvt_seq % 2].bytes_done, bytes_done);
++		}
++		
++		// -----------
++		
+ 		/* Disabled below here, only allowing
+ 		 * flat hierarchies in this branch */
+ 		
+diff --git a/coll_xhc_component.c b/coll_xhc_component.c
+index 414c875..3822590 100644
+--- a/coll_xhc_component.c
++++ b/coll_xhc_component.c
+@@ -92,7 +92,9 @@ mca_coll_xhc_component_t mca_coll_xhc_component = {
+ 	/* These are the parameters that will need
+ 	 * processing, and their default values. */
+ 	.hierarchy_mca = "numa,socket",
+-	.chunk_size_mca = "16K"
++	.chunk_size_mca = "16K",
++	
++	.sc_wait_mode = 0
+ };
+ 
+ /* Initial query function that is invoked during MPI_INIT, allowing
+@@ -251,6 +253,15 @@ static int xhc_register(void) {
+ 		MCA_BASE_VAR_TYPE_SIZE_T, NULL, 0, 0, OPAL_INFO_LVL_5,
+ 		MCA_BASE_VAR_SCOPE_READONLY, &mca_coll_xhc_component.cico_max);
+ 	
++	// --------------------
++	
++	(void) mca_base_component_var_register(&mca_coll_xhc_component.super.collm_version,
++		"sc_wait_mode", "sc_wait_mode",
++		MCA_BASE_VAR_TYPE_INT, NULL, 0, 0, OPAL_INFO_LVL_5,
++		MCA_BASE_VAR_SCOPE_READONLY, &mca_coll_xhc_component.sc_wait_mode);
++	
++	// --------------------
++	
+ 	return OMPI_SUCCESS;
+ }
+ 

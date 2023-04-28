@@ -1,0 +1,9 @@
+Results from ICX-48:
+
+Low latency (couple tens of ns): state is exclusive
+High latency (couple hundreds of ns): state is shared
+
+remote read, after local read : 219 ns -> shared (S/F)
+local read                    : 20 ns -> exclusive (E/M)
+local read, after remote read : 163 ns -> shared (S/F)
+remote read                   : 21 ns -> exclusive (E/M)

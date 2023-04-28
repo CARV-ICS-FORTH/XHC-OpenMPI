@@ -1,0 +1,133 @@
+diff --git a/coll_xhc.c b/coll_xhc.c
+index 4b13f92..5219f84 100644
+--- a/coll_xhc.c
++++ b/coll_xhc.c
+@@ -237,6 +237,8 @@ static int xhc_make_comms(ompi_communicator_t *ompi_comm,
+ 			.comm_ctrl = NULL,
+ 			.member_ctrl = NULL,
+ 			
++			.cico_buffer = NULL,
++			
+ 			.ctrl_ds = (opal_shmem_ds_t) {0}
+ 		};
+ 		
+@@ -331,7 +333,8 @@ static int xhc_make_comms(ompi_communicator_t *ompi_comm,
+ 		// Create shared structs
+ 		if(ompi_rank == xc->manager_rank) {
+ 			size_t ctrl_len = sizeof(xhc_comm_ctrl_t) + smsc_reg_size
+-				+ xc->size * sizeof(xhc_member_ctrl_t);
++				+ xc->size * sizeof(xhc_member_ctrl_t)
++				+ 8192 + mca_coll_xhc_component.cico_max;
+ 			
+ 			char *ctrl_base = xhc_shmem_create(&xc->ctrl_ds, ctrl_len,
+ 				ompi_comm, "ctrl", comm_count);
+@@ -345,6 +348,11 @@ static int xhc_make_comms(ompi_communicator_t *ompi_comm,
+ 			xc->comm_ctrl = (void *) ctrl_base;
+ 			xc->member_ctrl = (void *) (ctrl_base
+ 				+ sizeof(xhc_comm_ctrl_t) + smsc_reg_size);
++			
++			xc->cico_buffer = (void *) (ctrl_base
++				+ sizeof(xhc_comm_ctrl_t) + smsc_reg_size
++				+ xc->size * sizeof(xhc_member_ctrl_t)
++				+ 8192);
+ 		}
+ 		
+ 		ret = ompi_comm->c_coll->coll_allgather(&xc->ctrl_ds,
+@@ -365,6 +373,11 @@ static int xhc_make_comms(ompi_communicator_t *ompi_comm,
+ 			xc->comm_ctrl = (void *) ctrl_base;
+ 			xc->member_ctrl = (void *) (ctrl_base
+ 				+ sizeof(xhc_comm_ctrl_t) + smsc_reg_size);
++			
++			xc->cico_buffer = (void *) (ctrl_base
++				+ sizeof(xhc_comm_ctrl_t) + smsc_reg_size
++				+ xc->size * sizeof(xhc_member_ctrl_t)
++				+ 8192);
+ 		}
+ 		
+ 		xc->my_member_ctrl = &xc->member_ctrl[xc->member_id];
+diff --git a/coll_xhc.h b/coll_xhc.h
+index 116a085..2b1aef1 100644
+--- a/coll_xhc.h
++++ b/coll_xhc.h
+@@ -278,6 +278,8 @@ struct xhc_comm_t {
+ 	xhc_comm_ctrl_t *comm_ctrl;
+ 	xhc_member_ctrl_t *member_ctrl;
+ 	
++	char *cico_buffer;
++	
+ 	opal_shmem_ds_t ctrl_ds;
+ 	
+ 	// ---
+diff --git a/coll_xhc_bcast.c b/coll_xhc_bcast.c
+index 488fbcf..d5ffd92 100644
+--- a/coll_xhc_bcast.c
++++ b/coll_xhc_bcast.c
+@@ -82,6 +82,13 @@ static void xhc_bcast_children_init(xhc_comm_t *comms, int comm_count,
+ 		
+ 		WAIT_FLAG(&xc->comm_ctrl->coll_ack, seq - 1, 0);
+ 		
++		// ----
++		
++		if(do_cico && bytes_ready > 0)
++			memcpy(xc->cico_buffer, buffer, bytes_ready);
++		
++		// ----
++		
+ 		/* Because there is a control dependency with the loads
+ 		 * from coll_ack above and the code below, and because it
+ 		 * is a load-store one (not load-load), I declare that a
+@@ -206,7 +213,8 @@ int mca_coll_xhc_bcast(void *buf, int count, ompi_datatype_t *datatype, int root
+ 	int rank = ompi_comm_rank(ompi_comm);
+ 	
+ 	bool do_cico = (bytes_total <= OMPI_XHC_CICO_MAX);
+-	void *local_cico = xhc_get_cico(peer_info, comms[0].manager_rank);
++	// void *local_cico = xhc_get_cico(peer_info, comms[0].manager_rank);
++	
+ 	void *src_buffer;
+ 	
+ 	// Only really necessary for smsc/knem
+@@ -219,8 +227,10 @@ int mca_coll_xhc_bcast(void *buf, int count, ompi_datatype_t *datatype, int root
+ 	xhc_bcast_try_leader(comms, comm_count, peer_info, rank, root, pvt_seq);
+ 	
+ 	// No chunking for now... TODO?
+-	if(rank == root && do_cico)
+-		memcpy(local_cico, buf, bytes_total);
++	/* if(rank == root) {
++		if(do_cico)
++			memcpy(local_cico, buf, bytes_total);
++	} */
+ 	
+ 	if(!do_cico) {
+ 		int err = xhc_copy_expose_region(buf, bytes_total, &region_data);
+@@ -241,12 +251,10 @@ int mca_coll_xhc_bcast(void *buf, int count, ompi_datatype_t *datatype, int root
+ 	WAIT_FLAG(&src_ctrl->coll_seq, pvt_seq, 0);
+ 	xhc_atomic_rmb();
+ 	
+-	if(!do_cico)
++	if(do_cico)
++		src_buffer = src_comm->cico_buffer;
++	else
+ 		src_buffer = src_ctrl->data_vaddr;
+-	else {
+-		src_buffer = xhc_get_cico(peer_info, src_ctrl->cico_id);
+-		if(src_buffer == NULL) return OMPI_ERR_OUT_OF_RESOURCE;
+-	}
+ 	
+ 	size_t bytes_done = 0;
+ 	size_t bytes_available = 0;
+@@ -273,12 +281,12 @@ int mca_coll_xhc_bcast(void *buf, int count, ompi_datatype_t *datatype, int root
+ 		if(!comms[0].is_coll_leader)
+ 			copy_size = bytes_available;
+ 		
+-		if(!do_cico) {
++		if(do_cico)
++			memcpy(data_dst, data_src, copy_size);
++		else {
+ 			int err = xhc_copy_from(&peer_info[src_ctrl->leader_rank],
+ 				data_dst, data_src, copy_size, src_ctrl->access_token);
+ 			if(err != 0) return OMPI_ERROR;
+-		} else {
+-			memcpy(data_dst, data_src, copy_size);
+ 		}
+ 		
+ 		bytes_done += copy_size;

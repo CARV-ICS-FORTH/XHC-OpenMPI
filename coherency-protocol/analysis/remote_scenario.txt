@@ -1,0 +1,337 @@
+Note on "init = all shared, root write":
+
+Init to shared state is required before the init to modified in this scenario,
+for accurate results If for example, in one scenario, only root wrote the line
+and a remote read it, an observed optimization would be triggered and the
+behaviour would change. This method actually emulated the behaviour of a
+broadcast more accurately. In the previous iteration, all readers will have
+read the line (all shared). Then the root will write the line before or at the
+beginning of the new iteration (root write). Then, finally, the readers begin
+fetching the line.
+
+-----------------------------------------------------------
+
+SC_R_1: Init = all shared, root write. Action = remote read
+
+CORE    0   _    CORE_SNOOP_RESPONSE.I_FWD_M              1005
+
+CORE    24  _    L2_RQSTS.DEMAND_DATA_RD_MISS             986
+CORE    24  _    MEM_LOAD_RETIRED.L2_MISS                 985
+CORE    24  _    OFFCORE_REQUESTS.DEMAND_DATA_RD          986
+CORE    24  _    LONGEST_LAT_CACHE.REFERENCE              1005
+CORE    24  _    LONGEST_LAT_CACHE.MISS                   1003
+CORE    24  _    MEM_LOAD_RETIRED.L3_MISS                 985
+CORE    24  _    OFFCORE_REQUESTS.L3_MISS_DEMAND_DATA_RD  985
+CORE    24  _    MEM_LOAD_L3_MISS_RETIRED.REMOTE_HITM     985
+CORE    24  _    L2_LINES_OUT                             1006
+CORE    24  _    L2_LINES_IN                              1006
+
+SOCKET  0   CHA  TOR_INSERTS.RRQ.RD_DATA                  1001
+SOCKET  0   CHA  LLC_LOOKUP._REMOTE_NON_SNP               1014
+SOCKET  0   CHA  LLC_LOOKUP.LOC_HOM                       1148
+SOCKET  0   CHA  LLC_LOOKUP.READ_HIT                      1161
+SOCKET  0   CHA  LLC_LOOKUP.READ_SF_HIT                   1051
+SOCKET  0   CHA  LLC_LOOKUP.SF_E                          1040
+SOCKET  0   CHA  REQUESTS.WRITES_REMOTE                   1012
+SOCKET  0   CHA  HITME_LOOKUP.WRITE                       1026
+SOCKET  0   CHA  CORE_SNP.REMOTE_ONE                      1011
+SOCKET  0   CHA  _XSNP_RESP._EXT_RSPI_FWDM                993
+SOCKET  0   CHA  SNOOP_RSP_MISC.M_TO_I_RSP_I_FWD_M        1003
+SOCKET  0   CHA  DIR_UPDATE.TOR                           1012
+SOCKET  0   CHA  IMC_WRITES_COUNT                         1049
+
+SOCKET  0   IMC  CAS_COUNT.RD                             1030
+SOCKET  0   IMC  CAS_COUNT.WR                             1050
+
+SOCKET  1   CHA  LLC_LOOKUP.REM_HOM                       1099
+SOCKET  1   CHA  LLC_LOOKUP.READ_MISS                     1025
+SOCKET  1   CHA  LLC_LOOKUP.I                             1026
+
+- Remote reader: Rr, core 24
+- Root: RT, core 0
+
+1. Rr misses in his private L1/L2
+	- L2_RQSTS.DEMAND_DATA_RD_MISS
+	- MEM_LOAD_RETIRED.L2_MISS
+
+2. Rr sends the request to the associated CHA in the same socket (CHy)
+	- OFFCORE_REQUESTS.DEMAND_DATA_RD
+	- LONGEST_LAT_CACHE.REFERENCE
+
+3. CHy checks the LLC and SF, but misses
+	- LONGEST_LAT_CACHE.MISS
+	- MEM_LOAD_RETIRED.L3_MISS
+	- LLC_LOOKUP.READ_MISS
+	- LLC_LOOKUP.I
+
+4. CHy sends the request to the home CHA (CHx)
+
+5. CHx receives the RdData request
+	- TOR_INSERTS.RRQ.RD_DATA
+
+6. CHx checks the LLC and SF, and hits in the SF in E state
+	- LLC_LOOKUP.READ_HIT
+	- LLC_LOOKUP.READ_SF_HIT
+	- LLC_LOOKUP.SF_E
+
+7. CHx snoops RT
+	- CORE_SNP.REMOTE_ONE
+
+8. RT responds with IFwdM
+	- CORE_SNOOP_RESPONSE.I_FWD_M
+
+9. CHx receives the snoop response (RspIFwdM)
+	- _XSNP_RESP._EXT_RSPI_FWDM
+	- SNOOP_RSP_MISC.M_TO_I_RSP_I_FWD_M
+
+10. CHx updates the in-memory directory
+	- DIR_UPDATE.TOR
+	- IMC_WRITES_COUNT
+	- CAS_COUNT.WR
+
+x. Though not witnessed through the events, other actions:
+	- Write-back of dirty data
+	- In this instance, insertion in the HitME$
+
+11. CHx responds to CHy with the line, CHy gives it to Rr
+	- L2_LINES_OUT/IN
+
+Other events:
+
+- MEM_LOAD_L3_MISS_RETIRED.REMOTE_HITM
+	The load missed in the l3, but the line was found in the remote
+	socket in the modified state.
+
+- LLC_LOOKUP.LOC_HOM
+	The LLC lookup concerns a locally homed line,
+	i.e. a line allocated in this NUMA node.
+
+- LLC_LOOKUP.REM_HOM
+	The LLC lookup concerns a non-locally (remotely) homed line.
+
+- LLC_LOOKUP._REMOTE_NON_SNP
+	LLC lookup, as a result of a remote (different socket)
+	request, not of snoop type.
+
+- REQUESTS.WRITES_REMOTE
+	Request made to the Home Agent. Denoted as "write" type because it's
+	a HitM. Origin of request triggering this interaction is remote.
+
+- HITME_LOOKUP.WRITE
+	Not 100% clear why of lookup type, and why there's not a corresponding
+	HITME_HIT or HITME_MISS event. But this is part of the process of
+	allocating an entry in the HitME$.
+
+- CAS_COUNT.RD
+	The cause for this memory read is not fully known. Other events, out of
+	the context of this analysis, hint that the M2M performs a directory
+	lookup (and there isn't a subsequent "M2M directory update" to justify
+	the look-up). Apparently the M2M is nosy :-).
+
+-----------------------------------------------------------------------
+
+SC_R_2: Init = all shared, root write, local read. Action = remote read
+
+CORE    1   _    CORE_SNOOP_RESPONSE.S_HIT_FSE            1000
+
+CORE    24  _    L2_RQSTS.DEMAND_DATA_RD_MISS             986
+CORE    24  _    MEM_LOAD_RETIRED.L2_MISS                 985
+CORE    24  _    OFFCORE_REQUESTS.DEMAND_DATA_RD          986
+CORE    24  _    LONGEST_LAT_CACHE.REFERENCE              1005
+CORE    24  _    LONGEST_LAT_CACHE.MISS                   1002
+CORE    24  _    MEM_LOAD_RETIRED.L3_MISS                 985
+CORE    24  _    OFFCORE_REQUESTS.L3_MISS_DEMAND_DATA_RD  985
+CORE    24  _    MEM_LOAD_L3_MISS_RETIRED.REMOTE_HITM     985
+CORE    24  _    L2_LINES_OUT                             1005
+CORE    24  _    L2_LINES_IN                              1005
+
+SOCKET  0   CHA  TOR_INSERTS.RRQ.RD_DATA                  1001
+SOCKET  0   CHA  LLC_LOOKUP._REMOTE_NON_SNP               1018
+SOCKET  0   CHA  LLC_LOOKUP.LOC_HOM                       1148
+SOCKET  0   CHA  LLC_LOOKUP.READ_HIT                      1157
+SOCKET  0   CHA  LLC_LOOKUP.M                             1070
+SOCKET  0   CHA  REQUESTS.WRITES_REMOTE                   1017
+SOCKET  0   CHA  HITME_LOOKUP.WRITE                       1026
+SOCKET  0   CHA  CORE_SNP.REMOTE_ONE                      1013
+SOCKET  0   CHA  _XSNP_RESP._EXT_RSP_HIT_FSE              1030
+SOCKET  0   CHA  DIR_UPDATE.TOR                           1016
+SOCKET  0   CHA  IMC_WRITES_COUNT                         1046
+
+SOCKET  0   IMC  CAS_COUNT.RD                             1030
+SOCKET  0   IMC  CAS_COUNT.WR                             1049
+
+SOCKET  1   CHA  LLC_LOOKUP.REM_HOM                       1096
+SOCKET  1   CHA  LLC_LOOKUP.READ_MISS                     1024
+SOCKET  1   CHA  LLC_LOOKUP.I                             1026
+
+- Remote reader: Rr, core 24
+- Local reader: R1, core 1
+- Root: RT, core 0
+
+1. Rr misses in his private L1/L2
+	- L2_RQSTS.DEMAND_DATA_RD_MISS
+	- MEM_LOAD_RETIRED.L2_MISS
+
+2. Rr sends the request to the associated CHA in the same socket (CHy)
+	- OFFCORE_REQUESTS.DEMAND_DATA_RD
+	- LONGEST_LAT_CACHE.REFERENCE
+
+3. CHy checks the LLC and SF, but misses
+	- LONGEST_LAT_CACHE.MISS
+	- MEM_LOAD_RETIRED.L3_MISS
+	- LLC_LOOKUP.READ_MISS
+	- LLC_LOOKUP.I
+
+4. CHy sends the request to the home CHA (CHx)
+
+5. CHx receives the RdData request
+	- TOR_INSERTS.RRQ.RD_DATA
+
+6. CHx checks the LLC and SF, and hits in the LLC in the M state
+	- LLC_LOOKUP.READ_HIT
+	- LLC_LOOKUP.M
+
+CHx knows that R1 has taken cached the line (in the E state). See
+scenarios SC_L_1/SC_L_2.
+
+7. CHx snoops R1
+	- CORE_SNP.REMOTE_ONE
+
+8. R1 responds with SHitFSE
+	-> Will keep line in S state, line was in F/S/E (clean)
+	- CORE_SNOOP_RESPONSE.S_HIT_FSE
+
+9. CHx recevies the snoop response
+	- _XSNP_RESP._EXT_RSP_HIT_FSE
+	-> CHx knows that the data in LLC is clean
+
+10. CHx updates the in-memory directory
+	- DIR_UPDATE.TOR
+	- IMC_WRITES_COUNT
+	- CAS_COUNT.WR
+
+11. CHx responds to CHy with the line, CHy gives it to Rr
+	- L2_LINES_OUT/IN
+
+For other events, see SC_R_1.
+
+-----------------------------------------------------------------------
+
+SC_R_3: Init = all shared, root write, remote read. Action = local read
+
+CORE    1   _    L2_RQSTS.DEMAND_DATA_RD_MISS             985
+CORE    1   _    MEM_LOAD_RETIRED.L2_MISS                 984
+CORE    1   _    OFFCORE_REQUESTS.DEMAND_DATA_RD          985
+CORE    1   _    LONGEST_LAT_CACHE.REFERENCE              1004
+CORE    1   _    LONGEST_LAT_CACHE.MISS                   1000
+CORE    1   _    MEM_LOAD_RETIRED.L3_MISS                 984
+CORE    1   _    OFFCORE_REQUESTS.L3_MISS_DEMAND_DATA_RD  984
+CORE    1   _    MEM_LOAD_L3_MISS_RETIRED.REMOTE_FWD      984
+CORE    1   _    L2_LINES_OUT                             1004
+CORE    1   _    L2_LINES_IN                              1004
+
+CORE    24  _    CORE_SNOOP_RESPONSE.S_FWD_FE             999
+
+SOCKET  0   CHA  LLC_LOOKUP.LOC_HOM                       1174
+SOCKET  0   CHA  LLC_LOOKUP.READ_HIT                      1193
+SOCKET  0   CHA  LLC_LOOKUP.READ_SF_HIT                   1073
+SOCKET  0   CHA  LLC_LOOKUP.SF_H                          1018
+SOCKET  0   CHA  REQUESTS.READS_LOCAL                     1026
+SOCKET  0   CHA  OSB.LOCAL_READ                           1023
+SOCKET  0   CHA  HITME_LOOKUP.READ                        1027
+SOCKET  0   CHA  HITME_HIT.EX_RDS                         1023
+SOCKET  0   CHA  HITME_HIT._                              1020
+SOCKET  0   CHA  SNOOPS_SENT.DIRECT_LOCAL                 1021
+SOCKET  0   CHA  SNOOP_RESP.RSP_S_FWD                     1000
+SOCKET  0   CHA  SNOOP_RESP_LOCAL.RSP_S_FWD               995
+SOCKET  0   CHA  DIR_UPDATE.HA                            999
+SOCKET  0   CHA  IMC_WRITES_COUNT                         1050
+
+SOCKET  0   IMC  CAS_COUNT.WR                             1053
+
+SOCKET  1   CHA  TOR_INSERTS.IPQ.SNP_DATA                 1023
+SOCKET  1   CHA  LLC_LOOKUP.REMOTE_SNP                    1026
+SOCKET  1   CHA  LLC_LOOKUP.REM_HOM                       1099
+SOCKET  1   CHA  LLC_LOOKUP.SF_E                          1028
+SOCKET  1   CHA  CORE_SNP.EXT_ONE                         1025
+SOCKET  1   CHA  _XSNP_RESP._EXT_RSPS_FWDFE               1000
+
+- Remote reader: Rr, core 24
+- Local reader: R1, core 1
+- Root: RT, core 0
+
+1. R1 misses in his private L1/L2
+	- L2_RQSTS.DEMAND_DATA_RD_MISS
+	- MEM_LOAD_RETIRED.L2_MISS
+
+2. R1 sends the request to the associated CHA (CHx)
+	- OFFCORE_REQUESTS.DEMAND_DATA_RD
+	- LONGEST_LAT_CACHE.REFERENCE
+
+3. CHx checks the LLC/SF, and hits in the SF in H state
+	-> The H aka "HitME state" appears to be a HitME-related optimization
+	in the SF, but the manual and other documents are shy on the matter.
+	- LLC_LOOKUP.READ_HIT
+	- LLC_LOOKUP.READ_SF_HIT
+	- LLC_LOOKUP.SF_H
+
+x. Likely at this point, CHx issues OSB
+	- OSB.LOCAL_READ
+
+4. CHx looks-up and finds the line in the HitME$
+	- HITME_LOOKUP.READ
+	- HITME_HIT.EX_RDS
+
+5. CHx snoops the remote socket
+	- SNOOPS_SENT.DIRECT_LOCAL
+
+6. The remote socket CHA (CHy) receives the snoop
+	- TOR_INSERTS.IPQ.SNP_DATA
+
+7. CHy looks up the LLC and SF, and hit in the SF in E state
+	- LLC_LOOKUP.SF_E
+
+8. CHy snoops Rr
+	- CORE_SNP.EXT_ONE
+
+9. Rr responds with SFwdFE
+	-> Will retain line in S, will forward data, state was F/E
+	- CORE_SNOOP_RESPONSE.S_FWD_FE
+
+10. CHy receives the snoop response
+	- _XSNP_RESP._EXT_RSPS_FWDFE
+
+11. CHy responds to CHx
+
+12. CHx receives the cross-socket--snoop response
+	- SNOOP_RESP.RSP_S_FWD
+	- SNOOP_RESP_LOCAL.RSP_S_FWD
+
+13. CHx updates the directory
+	- DIR_UPDATE.HA
+	- IMC_WRITES_COUNT
+	- CAS_COUNT.WR
+
+14. CHx gives the line to R1
+	- L2_LINES_OUT/IN
+
+Other events:
+
+See also SC_R_1.
+
+- MEM_LOAD_L3_MISS_RETIRED.REMOTE_FWD
+	The load did not find the line in the L3, but it was
+	found in a remote socket, and data was forwarded.
+
+- LLC_LOOKUP.REMOTE_SNP
+	LLC lookup, as a result of a remote (different socket) snoop.
+
+- HITME_HIT._
+	Pay no mind to this, it's essentially the same as the HITME_HIT.EX_RDS.
+	It has a umask of 0xFF, to capture *all* HITME_HIT events, just in case
+	there is a hidden event not listed in the manual, which we are not
+	monitoring in fine-grain manner.
+
+- REQUESTS.READS_LOCAL
+	Request made to the Home Agent (for updating the directory),
+	as a result of the local request (R1's).
