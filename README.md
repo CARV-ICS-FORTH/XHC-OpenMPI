@@ -12,6 +12,9 @@ The material is organized in directories, as such:
 - **xb**: The source code of the XB component, utilized for the barrier
 synchronizing rank entry in the micro-benchmarks.
 
+- **ompi_patches**: A small collection of fixes/improvements for OpenMPI,
+to be applied before building it.
+
 - **osu-micro-benchmarks**: A modified version of the OSU micro-benchmark
 suite, which is used for the experiments.
 
@@ -21,6 +24,13 @@ highlight the observed performance anomaly phenomenon.
 - **remedies**: Scripts to benchmark and plot the performance of software
 remedies in comparison to the baseline implementation.
 
+- **cache_eng**: The software utilized for the analysis of the cache
+coherency protocol.
+
+- **coherency-protocol**: Scripts to aid in performing the coherency
+protocol experiments, and example written analysis of expected results,
+for reference.
+
 - **utils**: Miscellaneous supporting scripts for other tools. You're probably
 not interested in this.
 
@@ -28,9 +38,8 @@ See also the README in each respective directory for extra information
 
 ## Reproducing experiments
 
-Below is a high-level view of the process necessary in order to reproduce the
-performance on the paper. The rest of the sections in this document go into
-further detail.
+Below is a high-level view of the process for reproducing the experiments from the
+paper. The rest of the sections in this document will go into more detail.
 
 1. Build OpenMPI & deploy, including XHC and XB.
 
@@ -47,8 +56,8 @@ instruction to analyze the results.
 
 ### OpenMPI+XHC/XB
 
-The XHC & XB components require OpenMPI version 5. The experiments in the paper
-are performed using `v5.0.0rc10`. Both are drop-in component for the `coll`
+The XHC & XB components require OpenMPI version 5; the experiments in the paper
+are performed using `v5.0.0rc10`. Both are drop-in components for the `coll`
 framework of OpenMPI; one needs only place the components in the appropriate
 directory (`ompi/mca/coll/`), re-run the autogen script, and build OpenMPI.
 
@@ -56,9 +65,9 @@ In order to reap the full benefits of XHC, and correctly reproduce the results
 of the paper, XPMEM support in OpenMPI is required.
 
 - XPMEM can be obtained from <https://github.com/hpc/xpmem>. For the
-experiments in the paper we use git hash `61c39ef`. See the included
-[instructions](https://github.com/hpc/xpmem/blob/master/INSTALL) in XPMEM's
-repository in order to build it. You may need to manually point OpenMPI's
+experiments in the paper we used git hash `61c39ef`. See the included
+[instructions in XPMEM's repository](https://github.com/hpc/xpmem/blob/master/INSTALL) 
+in order to build it. You may need to manually point OpenMPI's
 configure script to XPMEM's installation, via the `--with-xpmem=` parameter.
 
 - At run-time, you will need to insert the kernel module and obtain proper
@@ -66,7 +75,7 @@ access rights to `/dev/xpmem`.
 
 Apart from instructing Open MPI to include XPMEM support, the rest of the build
 process is standard. General information on building Open MPI can be found in
-its documentation.
+its documentation:
 
 <https://www.open-mpi.org/doc/v5.0>  
 <https://www.open-mpi.org/faq/?category=building>  
@@ -77,10 +86,10 @@ to correctly support the run-scripts:
 
 - Make sure to run `make-git.sh` in XHC's directory, which prepares git
 branches from the included patches that implement the various variants. Refer
-to the detailed instructions below.
+to the detailed instructions below. Do this before building OpenMPI.
 
 - Make sure to include `--enable-mca-dso=coll-xhc` in the OpenMPI configure
-line. This allows the run-script to quickly recompile XHC between variants.
+line. This allows the run-scripts to quickly recompile XHC between variants.
 
 - Apply the OMPI patches in the `ompi-patches` dir. These patches fix a bug
 that would prevent correct operation of the XB component, and add an
@@ -128,10 +137,10 @@ $ make -s install
 $ cd ..
 ```
 
-At this point, if all went, the installation of OpenMPI is present in
-`$HOME/ompi-xhc` (or in the directory you chose instead). For the next steps,
-you need to add the appropriate directory to `PATH` and `LD_LIBRARY_PATH`. For
-example:
+At this point, if all went well, the installation of OpenMPI is present in
+`$HOME/ompi-xhc` (or in the respective alrenate directory chosen). For the
+next steps, you need to add the appropriate directory to `PATH` and `LD_LIBRARY_PATH`.
+For example:
 
 ```shell
 $ export PATH="$HOME/ompi-xhc/bin:$PATH"
@@ -145,14 +154,14 @@ $ which mpicc # should show sth like $HOME/ompi-xhc/bin/mpicc
 $ which mpirun # should show sth like $HOME/ompi-xhc/bin/mpirun
 
 $ mpirun hostname
-$ mpicc $HOME/ompi-xhc-src/examples/hello_c.c -o hello_c
+$ mpicc "$HOME/ompi-xhc-src/examples/hello_c.c" -o hello_c
 $ mpirun hello_c
 ```
 
 ### OSU micro-benchmarks
 
 The build process for the OSU micro-benchmarks is fairly straightforward. With
-the OpenMPI installation correctly included in `PATH`/`LD_LIBRARY_PATH`:
+the OpenMPI installation included in `PATH`/`LD_LIBRARY_PATH`:
 
 ```shell
 $ cp XHC-OpenMPI/osu-micro-benchmarks osu-xhc
@@ -169,13 +178,13 @@ $ cd ..
 
 ### Running
 
-The experiments are split up in two groups: (1) [effect](), (2)
-[remedies](). They can be easily perform using the included scripts;
-detailed information is included in the README file inside each respective
+The experiments are split up in two groups: (1) [effect](effect), (2)
+[remedies](remedies). They can be performed easily via the included scripts;
+detailed information is found in the README file inside each respective
 directory. It's recommended to go through the scripts themselves, to observe
 how they work, what actions they perform, and what configuration adjustments
-might be necessary. Both run groups are expected to complete in a matter of few
-hours.
+might be necessary. Both groups' experiments are expected to complete in a
+matter of few hours.
 
 Example sequence:
 
@@ -191,7 +200,7 @@ $ XHC-OpenMPI/remedies/run-remedies.sh
 
 ### Plotting results
 
-Similarly, to running the experiments, included scripts may be used to plot the
+Similarly to running the experiments, included scripts may be used to plot the
 results. Refer to the README file in each respective directory for instruction
 on these scripts.
 
@@ -209,11 +218,11 @@ $ ./plot-remedies.sh
 
 Finally, the experiments that aid in the analysis of the cache coherency
 protocol follow. The `cache_eng` software is used for these experiments. The
-experiments are of two types: (1) ones demonstrating the coherence state
-transitions, and (2) ones that monitor different hardware performance
-monitoring events for different communication scenarios. More details about
-`cache_eng`, as well as about the two types, are available in README files
-inside the respective directories.
+experiments are of two types: (1) experiments demonstrating the coherence state
+transitions, and (2) experiments that monitor hardware performance monitoring
+events for various communication scenarios. More details about cache_eng are
+available inside its directory. Additional information about these exeperiments
+is found inside the [coherency-protocol](coherency-protocol) directory.
 
 ### State transitions
 
@@ -221,7 +230,7 @@ This experiment does not require much set-up, and can be run on any generation
 of the Intel Xeon Scalable processor architecture. Use
 `./run-state-transitions.sh` to run the experiment, and
 `./analyze-state-transitions.awk` to process the results. See the
-[cache_coherency]() directory for more information about the
+[coherency-protocol](coherency-protocol) directory for more information about the
 run-script & its configuration options, as well as how to interpret the
 output of the analysis script.
 
@@ -239,32 +248,30 @@ $ ./analyze-state-transitions.awk "$HOME/protocol_state_transitions"/*.txt
 ### Communication scenarios
 
 For the communication scenarios, some system configuration is necessary.
-Root-level access on the system will be necessary. Note that this experiment
-can currently only be run on the Ice Lake architecture. See also the
-documentation of `cache_eng`, and the material in the `coherency-protocol`
-directory.
+Root-level access on the system will be required. Note that this experiment
+can currently only be run on the Ice Lake architecture.
 
 #### WARNING
 
-The `cache_eng` software accesses & manipulates Model Specific Registers (MSRs)
-and the PCI configuration space. It has more privileges than ordinary programs,
-and conceivably has the potential to affect the operation of the system in
-perhaps destructive ways. You must thoroughly understand the implications of
-these factors, and verify the functionality of the software prior to running
-it. Use at your own risk.
+The `cache_eng` software accesses & manipulates Model Specific Registers (MSRs),
+and registers in the PCI configuration space. It has more privileges than common
+programs, and conceivably has the potential to affect the operation of the system
+in perhaps destructive ways. You must thoroughly understand the implications of
+these factors, and verify the functionality of the software prior to running it.
+Use at your own risk.
 
 #### Preparation
 
-For the cache_eng software to correctly initialize and capture performance
-counters, the following configurations are necessary:
+For cache_eng to correctly initialize and capture performance counters, the following
+configurations are necessary:
 
 - The `msr` kernel module must be loaded.
 
-- The user running `cache_eng` must have r/w access to `/dev/cpu/*/msr`.
+- The user running cache_eng must have r/w access to `/dev/cpu/*/msr`.
 
-- The user running `cache_eng` must have r/w access to `/dev/mem`.
+- The user running cache_eng must have r/w access to `/dev/mem`.
 
-- If `cache_eng` is run as a regular user (recommended), the executable must
+- If cache_eng is run as a regular user (recommended), the executable must
 have the `CAP_SYS_RAWIO` capability.
 	
 	- The Makefile for `cache_eng` by default does this after each compilation,
@@ -295,11 +302,11 @@ sockets* and *cores per socket*.
 - In [cache_eng/perfctr.h](), lines 45-46, set the mmconfig area values for
 your system.
 
-- In [cache_eng/perfctr.c](), line 278, set the PCI bus number for each socket.
+- In [cache_eng/perfctr.c](), line 278, set the PCI bus number for each CPU socket.
 
-Example on how to obtain these values:
+Example how to obtain these values:
 
-```
+```shell
 $ lscpu | grep -P '(Socket\(s\)|Core\(s\) per socket)'
 Core(s) per socket:              24
 Socket(s):                       2
@@ -312,7 +319,7 @@ $ sudo lspci -vnn | grep 8086:3450
 fe:00.0 System peripheral [0880]: Intel Corporation Device [8086:3450]
 ```
 
-In these examples, the values are set:
+In this example, the following values are used:
 
 ```c
 // perfctr.h:15-16
@@ -327,8 +334,7 @@ In these examples, the values are set:
 uint PCI_PMON_bus[NUM_SOCKETS] = {0x7e, 0xfe};
 ```
 
-Finally, run cache_eng to make sure that the system and cache_eng is configured
-correctly.
+Finally, run cache_eng to make sure that the system is configured properly.
 
 ```shell
 $ (cd XHC-OpenMPI/cache_eng; make clean; make; mpirun --bind-to core ./cache_eng -sn 100)
@@ -386,8 +392,8 @@ Cleaning up MSR
 #### Execution
 
 Once the system is properly prepared, the experiment can be run using the
-included `run-protocol.sh` script. See the README in the [cache-coherency]()
-directory for configuration options and further instructions, including on how
+included `run-protocol.sh` script. See the README in the [coherency-protocol](coherency-protocol)
+directory for configuration options and further instructions, including how
 to interpret the results.
 
 ```shell
@@ -396,9 +402,10 @@ cd XHC-OpenMPI/coherency-protocol
 $ ./run-protocol.sh
 ```
 
-Finally, note that `cache_eng` globally disables pre-fetching while executing.
-It is re-enabled automatically, but might have not been if e.g. the program was
-interrupted. Use the following command to verify that it has been re-enabled:
+Finally, note that cache_eng globally disables pre-fetching while running.
+It is re-enabled automatically, but this might not happen, e.g. if the
+execution was interrupted. Use the following command to verify that prefetching
+is enabled:
 
 ```shell
 $ sudo rdmsr -ac 0x1A4
@@ -406,7 +413,7 @@ $ sudo rdmsr -ac 0x1A4
 
 A value of `0x0` means that the prefetchers are enabled; all lines should have
 this value. If any lines do not, use the following command to manually set the
-correct value.
+correct one.
 
 ```shell
 $ sudo wrmsr -a 0x1A4 0x0
