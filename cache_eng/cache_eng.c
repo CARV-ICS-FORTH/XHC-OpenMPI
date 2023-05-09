@@ -829,21 +829,23 @@ int main(int argc, char **argv) {
 		RETURN_WITH_ERROR(return_code, -2, end);
 	
 	// ----
-	
-	int my_cpu = bind_hwthread();
-	assert(my_cpu >= 0 && my_cpu < NUM_CORES);
-	
-	active_cores[my_cpu] = true;
-	MPI_Allreduce(MPI_IN_PLACE, active_cores,
-		NUM_CORES, MPI_C_BOOL, MPI_LOR, MPI_COMM_WORLD);
-	
-	if(rank == 0) {
-		printf("Active CPUs: ");
-		for(int i = 0; i < NUM_CORES; i++) {
-			if(active_cores[i])
-				printf("%d ", i);
+
+	if(enable_perfctr) {
+		int my_cpu = bind_hwthread();
+		assert(my_cpu >= 0 && my_cpu < NUM_CORES);
+		
+		active_cores[my_cpu] = true;
+		MPI_Allreduce(MPI_IN_PLACE, active_cores,
+			NUM_CORES, MPI_C_BOOL, MPI_LOR, MPI_COMM_WORLD);
+		
+		if(rank == 0) {
+			printf("Active CPUs: ");
+			for(int i = 0; i < NUM_CORES; i++) {
+				if(active_cores[i])
+					printf("%d ", i);
+			}
+			printf("\n");
 		}
-		printf("\n");
 	}
 	
 	// ----

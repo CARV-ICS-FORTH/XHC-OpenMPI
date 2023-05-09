@@ -105,9 +105,9 @@ void perfctr_report_imc(uint64_t initial_values[*][*][*][*],
 	static inline struct timespec TS(void) {
 		struct timespec ts;
 		
-		#if defined(PLATFORM_ARCH_X86_64) || defined(PLATFORM_ARCH_X86)
+		#if defined(__x86_64) || defined(__x86_64__)
 			__builtin_ia32_mfence();
-		#elif defined(PLATFORM_ARCH_ARM) || defined(PLATFORM_ARCH_AARCH64)
+		#elif defined(__arm__) || defined(__aarch64__)
 			__asm__ __volatile__("dmb sy" : : : "memory");
 		#else
 			#error "Unknown arch, implement memory barrier"
