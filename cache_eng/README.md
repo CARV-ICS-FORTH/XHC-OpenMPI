@@ -178,7 +178,7 @@ This is achieved through the `EXTERNAL_SCENARIO` and `EXTERNAL_SCENARIO_FN`
 macros. The Makefile supports automatically setting these macros through the `SC`
 and `SC_FN` parameters. See the source code of `perform_test()` and `Makefile`
 for reference. Also, see the included prepared scenarios under
-[cache_eng/scenarios](cache_eng/scenarios) for examples on the structure of external communication
+[scenarios](scenarios) for examples on the structure of external communication
 scenarios.
 
 ## Time measurements
