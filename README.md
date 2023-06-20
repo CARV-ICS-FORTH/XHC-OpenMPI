@@ -181,10 +181,11 @@ $ cd ..
 The experiments are split up in two groups: (1) [effect](effect), (2)
 [remedies](remedies). They can be performed easily via the included scripts;
 detailed information is found in the README file inside each respective
-directory. It's recommended to go through the scripts themselves, to observe
-how they work, what actions they perform, and what configuration adjustments
-might be necessary. Both groups' experiments are expected to complete in a
-matter of few hours.
+directory. It's recommended to go through the scripts themselves, and verify
+that their default configuration options are suitable. If the paths recommended
+in the building instructions above are followed, likely no adjustments will be
+necessary. Both groups' experiments are expected to complete in a matter of few
+hours.
 
 Example sequence:
 
