@@ -29,8 +29,9 @@ will place the results of the benchmarks.
 - <ins>**OSU_DIR**</ins> (default `$HOME/osu-xhc/mpi/collective`): Location of
 the MPI collective benchmarks inside the modified OSU micro-benchmark suite.
 
-It's recommended to go through the script to see how it works, the actions that
-it performs, and the OpenMPI MCA variables that it sets.
+Finally, while most likely not necessary, consider briefly going through the
+script to see how it works, the actions that it performs, and the OpenMPI MCA
+variables that it sets.
 
 ### plot-effect.sh
 
