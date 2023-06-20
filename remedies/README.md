@@ -60,8 +60,9 @@ the MPI collective benchmarks inside the modified OSU micro-benchmark suite.
 of the XHC component within the OpenMPI installation. This is necessary in
 order for the script to switch between the variants and re-compile XHC.
 
-Finally, it's recommended to go through the script to see how it works, the
-actions that it performs, and the OpenMPI MCA variables that it sets.
+Finally, while most likely not necessary, consider briefly going through the
+script to see how it works, the actions that it performs, and the OpenMPI MCA
+variables that it sets.
 
 ### plot-remedies.sh
 
