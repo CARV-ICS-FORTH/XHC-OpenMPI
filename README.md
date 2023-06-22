@@ -138,7 +138,7 @@ $ cd ..
 ```
 
 At this point, if all went well, the installation of OpenMPI is present in
-`$HOME/ompi-xhc` (or in the respective alrenate directory chosen). For the
+`$HOME/ompi-xhc` (or in the respective alternate directory chosen). For the
 next steps, you need to add the appropriate directory to `PATH` and `LD_LIBRARY_PATH`.
 For example:
 
