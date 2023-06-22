@@ -76,7 +76,8 @@ df = df[df['size'].isin(['4', '1K', '16K', '64K', '256K', '1M'])]
 # sns.move_legend(ax, 'upper left', frameon=True)
 
 ax = sns.lineplot(data=df, x='n_ranks', y='latency',
-	hue='size', style='locality', errorbar=None, palette='tab10')
+	hue='size', style='locality', palette='tab10')
+	# errorbar=None, # removed cause t'was buggy with old versions of matplotlib/seaborn (I hate old software)
 
 xl = df['n_ranks'].unique()[::2]
 

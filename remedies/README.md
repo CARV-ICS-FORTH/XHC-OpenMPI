@@ -35,10 +35,11 @@ during the [build process](../README.md#building). Note that if the script is
 interrupted, the XHC source-tree and installation might be left in a state
 where a variant other that the baseline implementation is active. If this
 happens, manually switch to the *vanilla* git branch, and execute `make
-install` in XHC's directory. Furthermore, note that because the script
-automatically rebuilds XHC (for ease of use), it mustn't be executed on
-multiple systems that share the same OpenMPI installation (e.g. over NFS), at
-the same time.
+install` in XHC's directory.
+
+**WARNING** Because the script automatically rebuilds XHC (for ease of use), it
+mustn't be executed on multiple systems that share the same OpenMPI
+installation (e.g. over NFS), at the same time.
 
 A number of configurations can be made inside the script.
 Adjustment/verification of the highlighted/underlined items is strongly

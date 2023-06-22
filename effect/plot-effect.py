@@ -61,7 +61,8 @@ df['size'] = df['size'].map(util.pow2SI)
 max_ranks = df['n_ranks'].max()
 
 ax = sns.lineplot(data=df, x='n_ranks', y='latency',
-	hue='size', errorbar='sd', palette='tab10')
+	hue='size', palette='tab10')
+	# errorbar='sd', # removed cause t'was buggy with old versions of matplotlib/seaborn (I hate old software)
 
 xl = df['n_ranks'].unique()[::2]
 

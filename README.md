@@ -122,7 +122,7 @@ $ git clone -b v5.0.0rc10 https://github.com/open-mpi/ompi ompi-xhc-src
 $ cd ompi-xhc-src
 
 # Add XHC/XB
-$ cp ../XHC-OpenMPI/{xhc,xb} ompi/mca/coll/
+$ cp -r ../XHC-OpenMPI/{xhc,xb} ompi/mca/coll/
 $ (cd ompi/mca/coll/xhc && ./make-git.sh)
 
 # Apply OMPI patches
@@ -151,6 +151,7 @@ Finally, verify that the installation is OK:
 
 ```shell
 $ which mpicc # should show sth like $HOME/ompi-xhc/bin/mpicc
+$ which mpicxx # should show sth like $HOME/ompi-xhc/bin/mpicxx
 $ which mpirun # should show sth like $HOME/ompi-xhc/bin/mpirun
 
 $ mpirun hostname
@@ -164,7 +165,7 @@ The build process for the OSU micro-benchmarks is fairly straightforward. With
 the OpenMPI installation included in `PATH`/`LD_LIBRARY_PATH`:
 
 ```shell
-$ cp XHC-OpenMPI/osu-micro-benchmarks osu-xhc
+$ cp -r XHC-OpenMPI/osu-micro-benchmarks osu-xhc
 $ cd osu-xhc
 
 $ ./autogen.sh
@@ -195,6 +196,9 @@ $ cd "$HOME"
 $ nano XHC-OpenMPI/effect/run-effect.sh
 $ XHC-OpenMPI/effect/run-effect.sh
 
+# WARNING Don't execute run-remedies.sh on multiple systems at the
+# same time, if they share an OpenMPI installation (e.g. over NFS)
+
 $ nano XHC-OpenMPI/remedies/run-remedies.sh
 $ XHC-OpenMPI/remedies/run-remedies.sh
 ```
@@ -205,13 +209,27 @@ Similarly to running the experiments, included scripts may be used to plot the
 results. Refer to the README file in each respective directory for instruction
 on these scripts.
 
-Example sequence, after the raw data is placed in the appropriate directories:
+Keep in mind that you will need to manually place the raw data that the run
+scripts will output, into appropriate directories. The required pattern is the
+respective README files ([effect/README.md](effect),
+[remedies/README.md](remedies)).
+
+Example commands to plot the data:
 
 ```shell
-$ cd XHC-OpenMPI/effect
+
+# Organize raw data into {effect,remedies}/data; check respective READMEs
+# This command might help automate the process (assumes default paths):
+
+$ for type in effect remedies; do for host in $(find "$HOME/bcast_$type" -type f -name '*.txt' -printf "%f\n" | sed -r 's/(.*)_xhc_.*/\1/' | uniq); do mkdir -p $HOME/XHC-OpenMPI/$type/data/$host; cp "$HOME/bcast_$type"/${h}* $HOME/XHC-OpenMPI/$type/data/$host; done; done
+
+$ cd "$HOME/XHC-OpenMPI/effect"
 $ ./plot-effect.sh
 
+# See remedies/README.md for remedy tuning options
+
 $ cd ../remedies
+$ nano plot-remedies.py plot-remedies-speedup-all.py
 $ ./plot-remedies.sh
 ```
 
@@ -238,9 +256,8 @@ output of the analysis script.
 Example sequence:
 
 ```shell
-cd XHC-OpenMPI/coherency-protocol
+cd "$HOME/XHC-OpenMPI/coherency-protocol"
 
-$ nano run-state-transitions.sh
 $ ./run-state-transitions.sh
 $ ./analyze-state-transitions.awk "$HOME/protocol_state_transitions"/*.txt
 
@@ -250,7 +267,7 @@ $ ./analyze-state-transitions.awk "$HOME/protocol_state_transitions"/*.txt
 
 For the communication scenarios, some system configuration is necessary.
 Root-level access on the system will be required. Note that this experiment
-can currently only be run on the Ice Lake architecture.
+can currently only be run on the **Ice Lake** architecture.
 
 #### WARNING
 
