@@ -8,16 +8,25 @@ component for OpenMPI, as well as related software & accompanying material.
 The various content around our work with XHC and OpenMPI collectives is
 organized in multiple **branches** in the current repository.
 
+- [xhc-fresh](https://github.com/CARV-ICS-FORTH/XHC-OpenMPI/tree/xhc-fresh):
+The latest version of XHC and accompanying software
+
+- [icpp-23](https://github.com/CARV-ICS-FORTH/XHC-OpenMPI/tree/icpp-23):
+Software snapshot and material related to our ICPP 2023 paper (see below)
+
 - [ieee-cluster-22](https://github.com/CARV-ICS-FORTH/XHC-OpenMPI/tree/ieee-cluster-22):
 Software snapshot and material related to our IEEE Cluster 2022 paper (see
 below)
 
-- [xhc-fresh](https://github.com/CARV-ICS-FORTH/XHC-OpenMPI/tree/xhc-fresh):
-The latest version of XHC and accompanying software
-
 ### Publications
 
-1. **A framework for hierarchical single-copy MPI collectives on multicore nodes**,  
+- **Impact of Cache Coherence on the Performance of Shared-Memory based MPI Primitives:
+A Case Study for Broadcast on Intel Xeon Scalable Processors**,  
+*George Katevenis, Manolis Ploumidis, and Manolis Marazakis*,  
+ICPP 2023, Salt Lake City, Utah, USA.  
+https://doi.org/10.1145/3605573.3605616
+
+- **A framework for hierarchical single-copy MPI collectives on multicore nodes**,  
 *George Katevenis, Manolis Ploumidis, and Manolis Marazakis*,  
 IEEE Cluster 2022, Heidelberg, Germany.  
 https://ieeexplore.ieee.org/document/9912729
