@@ -1,7 +1,7 @@
 Note on "init = all shared, root write":
 
 Init to shared state is required before the init to modified in this scenario,
-for accurate results If for example, in one scenario, only root wrote the line
+for accurate results. If for example, in one scenario, only root wrote the line
 and a remote read it, an observed optimization would be triggered and the
 behaviour would change. This method actually emulated the behaviour of a
 broadcast more accurately. In the previous iteration, all readers will have
