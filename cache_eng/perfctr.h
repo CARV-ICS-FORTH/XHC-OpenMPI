@@ -19,7 +19,6 @@
 // ---
 
 #define NUM_CORES (NUM_SOCKETS * NUM_CORES_PER_SOCKET)
-#define SOCKET_CPU(socket) (socket * NUM_CORES_PER_SOCKET)
 // #define NUM_CPUS (NUM_CORES * NUM_CPUS_PER_CORE)
 
 #define NUM_CORE_COUNTERS 4
@@ -131,14 +130,23 @@
 // CHA
 // --------------------------------------
 
-#define MSR_PMON_CHA_UNIT_CTL_BASE 0x0E00L
-#define MSR_PMON_CHA_UNIT_STATUS_BASE 0x0E07L
-#define MSR_PMON_CHA_CTR_BASE 0x0E08L
-#define MSR_PMON_CHA_CTL_BASE 0x0E01L
-#define MSR_PMON_CHA_FILTER_BASE 0x0E05L
+static inline uint MSR_PMON_CHA_BASE(uint cha) {
+	if(cha < 18)
+		return 0x0E00 + cha * 0x0E;
+	else if(cha < 34)
+		return 0x0F0A + (cha - 18) * 0x0E;
+	else
+		return 0x0B60 + (cha - 34) * 0x0E;
+}
+
+#define MSR_PMON_CHA_UNIT_CTL_OFFSET 0x00
+#define MSR_PMON_CHA_UNIT_STATUS_OFFSET 0x07
+#define MSR_PMON_CHA_CTR_OFFSET 0x08
+#define MSR_PMON_CHA_CTL_OFFSET 0x01
+#define MSR_PMON_CHA_FILTER_OFFSET 0x05
 
 #define MSR_CHA_REG(cha, reg, n) \
-	(MSR_PMON_CHA_##reg##_BASE + ((cha) < 18 ? (cha) : (cha) + 1) * 0x0EL + (n))
+	(MSR_PMON_CHA_BASE(cha) + MSR_PMON_CHA_##reg##_OFFSET + (n))
 
 #define CHA_CTL_EVENT 0
 #define CHA_CTL_UMASK 8
@@ -454,6 +462,8 @@ extern const char *idi_opcode_str[IDI_OPCODE_COUNT];
 // --------------------------------------
 
 unsigned int cpu_model(void);
+
+int cpu_in_socket(int socket);
 
 // --------------------------------------
 

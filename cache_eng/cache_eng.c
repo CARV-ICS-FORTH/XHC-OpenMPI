@@ -173,7 +173,7 @@ static inline void start_counters(void) {
 	}
 	
 	for(int s = 0; s < NUM_SOCKETS; s++)
-		msr_write(SOCKET_CPU(s), 1L << GLOBAL_CTL_UNFRZ_ALL,
+		msr_write(cpu_in_socket(s), 1L << GLOBAL_CTL_UNFRZ_ALL,
 			MSR_PMON_GLOBAL_CTL);
 }
 
@@ -181,7 +181,7 @@ static inline void stop_counters(void) {
 	_mm_mfence();
 	
 	for(int s = 0; s < NUM_SOCKETS; s++)
-		msr_write(SOCKET_CPU(s), 1L << GLOBAL_CTL_FRZ_ALL,
+		msr_write(cpu_in_socket(s), 1L << GLOBAL_CTL_FRZ_ALL,
 			MSR_PMON_GLOBAL_CTL);
 	
 	for(int c = 0; c < NUM_CORES; c++) {
@@ -431,14 +431,14 @@ void perfctr_program_cha(bool from_list, ctr_event_t *events, int n_events) {
 						ctr_event_names[PMON_BOX_CHA][i] = events[i].desc;
 					}
 					
-					msr_write(SOCKET_CPU(s), val, MSR_CHA_REG(cha, CTL, i));
+					msr_write(cpu_in_socket(s), val, MSR_CHA_REG(cha, CTL, i));
 				}
 			}
 		}
 	} else {
 		#define PROGRAM_CTR_EXT(event, umask, xtra, desc) ({ \
 			assert(ctr_index < NUM_CHA_COUNTERS); \
-			msr_write(SOCKET_CPU(s), CHA_CTL_EXT(event, umask, xtra), \
+			msr_write(cpu_in_socket(s), CHA_CTL_EXT(event, umask, xtra), \
 				MSR_CHA_REG(cha, CTL, ctr_index)); \
 			ctr_event_names[PMON_BOX_CHA][ctr_index++] = desc; \
 		})
@@ -542,7 +542,7 @@ void perform_test(int iter, int warmup, int iterations) {
 				// CHA
 				for(int cha = 0; cha < NUM_CHA_BOXES; cha++) {
 					for(int ctr = 0; ctr < NUM_CHA_COUNTERS; ctr++) {
-						perf_cha_initial[s][cha][ctr] = msr_read(SOCKET_CPU(s),
+						perf_cha_initial[s][cha][ctr] = msr_read(cpu_in_socket(s),
 							MSR_CHA_REG(cha, CTR, ctr));
 					}
 				}

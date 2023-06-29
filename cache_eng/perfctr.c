@@ -223,6 +223,56 @@ unsigned int cpu_model(void) {
 	return (cpuid_data[0] & 0xFFF0FF0);
 }
 
+static int socket_resident_cpu[NUM_SOCKETS];
+static bool socket_resident_cpu_init = false;
+
+int cpu_in_socket(int socket) {
+	if(!socket_resident_cpu_init) {
+		FILE *fp = fopen("/proc/cpuinfo", "r");
+		
+		if(!fp) {
+			fprintf(stderr, "ERROR %s when trying to open /proc/cpuinfo\n",
+				strerror(errno));
+			abort();
+		}
+		
+		for(int s = 0; s < NUM_SOCKETS; s++)
+			socket_resident_cpu[s] = -1;
+		
+		int n_found = 0;
+		
+		while(n_found < NUM_SOCKETS && feof(fp) == 0) {
+			int cid, sid;
+			
+			while(!fscanf(fp, "processor\t: %d", &cid))
+				fscanf(fp, "%*[^p]");
+			
+			while(!fscanf(fp, "physical id\t: %d", &sid))
+				fscanf(fp, "%*[^p]");
+			
+			if(socket_resident_cpu[sid] == -1) {
+				socket_resident_cpu[sid] = cid;
+				n_found++;
+			}
+		}
+		
+		if(n_found < NUM_SOCKETS) {
+			for(int s = 0; s < NUM_SOCKETS; s++) {
+				if(socket_resident_cpu[s] == -1) {
+					fprintf(stderr, "ERROR: failed to find CPU belonging "
+						"to socket %d\n", s);
+				}
+			}
+			
+			abort();
+		}
+		
+		socket_resident_cpu_init = true;
+	}
+	
+	return socket_resident_cpu[socket];
+}
+
 // --------------------------------------
 
 int msr_fd[NUM_CORES];
@@ -438,11 +488,11 @@ static void perfctr_setup_cha(void) {
 		for(int cha = 0; cha < NUM_CHA_BOXES; cha++) {
 			
 			// Unfreeze at CHA box level (we'll handle freezing globally)
-			msr_write(SOCKET_CPU(s), PMON_UNIT_CTL_ZSAFE, MSR_CHA_REG(cha, UNIT_CTL, 0));
+			msr_write(cpu_in_socket(s), PMON_UNIT_CTL_ZSAFE, MSR_CHA_REG(cha, UNIT_CTL, 0));
 			
 			// Disable and zero counters
 			for(int ctr = 0; ctr < NUM_CHA_COUNTERS; ctr++) {
-				msr_write(SOCKET_CPU(s), 1L << CHA_CTL_RESET,
+				msr_write(cpu_in_socket(s), 1L << CHA_CTL_RESET,
 					MSR_CHA_REG(cha, CTL, ctr));
 			}
 		}
@@ -454,7 +504,7 @@ static void perfctr_cleanup_cha(void) {
 	for(int s = 0; s < NUM_SOCKETS; s++) {
 		for(int cha = 0; cha < NUM_CHA_BOXES; cha++) {
 			for(int ctr = 0; ctr < NUM_CHA_COUNTERS; ctr++) {
-				msr_write(SOCKET_CPU(s), 1L << CHA_CTL_RESET, MSR_CHA_REG(cha, CTL, ctr));
+				msr_write(cpu_in_socket(s), 1L << CHA_CTL_RESET, MSR_CHA_REG(cha, CTL, ctr));
 			}
 		}
 	}
@@ -645,7 +695,7 @@ void perfctr_setup(bool want_prefetch) {
 	
 	// Freeze uncore counters globally
 	for(int s = 0; s < NUM_SOCKETS; s++)
-		msr_write(SOCKET_CPU(s), 1L << GLOBAL_CTL_FRZ_ALL, MSR_PMON_GLOBAL_CTL);
+		msr_write(cpu_in_socket(s), 1L << GLOBAL_CTL_FRZ_ALL, MSR_PMON_GLOBAL_CTL);
 	
 	// Freeze all cores' counters
 	for(int c = 0; c < NUM_CORES; c++)

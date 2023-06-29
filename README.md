@@ -303,13 +303,15 @@ Below follow example commands for these configurations:
 # Access to MSRs
 $ sudo modprobe msr
 $ sudo groupadd msr
-$ sudo usermod -aG msr <user> # remember to re-login
+$ sudo usermod -aG msr <user>
 $ sudo chown root:msr /dev/cpu/*/msr
 $ sudo chmod g+rw /dev/cpu/*/msr
 
 # Access to /dev/mem
-$ sudo usermod -aG kmem <user> # remember to re-login
+$ sudo usermod -aG kmem <user>
 $ sudo chmod g+rw /dev/mem
+
+# Remember to re-login for groups to take effect and re-export PATH/LD_LIBRARY_PATH
 ```
 
 Furthermore, some configuration is necessary inside `cache_eng`'s source code.
@@ -415,9 +417,10 @@ directory for configuration options and further instructions, including how
 to interpret the results.
 
 ```shell
-cd XHC-OpenMPI/coherency-protocol
+$ cd "$HOME/XHC-OpenMPI/coherency-protocol"
 
 $ ./run-protocol.sh
+$ tree "$HOME/protocol" "$HOME/XHC-OpenMPI/coherency-protocol/analysis"
 ```
 
 Finally, note that cache_eng globally disables pre-fetching while running.

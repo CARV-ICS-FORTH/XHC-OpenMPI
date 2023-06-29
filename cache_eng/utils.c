@@ -172,7 +172,7 @@ void perfctr_report_cha(uint64_t initial_values[NUM_SOCKETS][NUM_CHA_BOXES][NUM_
 	for(int ctr = 0; ctr < NUM_CHA_COUNTERS; ctr++) {
 		for(int s = 0; s < NUM_SOCKETS; s++) {
 			for(int cha = 0; cha < NUM_CHA_BOXES; cha++) {
-				uint64_t ctr_now = msr_read(SOCKET_CPU(s),
+				uint64_t ctr_now = msr_read(cpu_in_socket(s),
 					MSR_CHA_REG(cha, CTR, ctr));
 				
 				uint64_t ctr_avg = (ctr_now - initial_values[s][cha][ctr])/iterations;
