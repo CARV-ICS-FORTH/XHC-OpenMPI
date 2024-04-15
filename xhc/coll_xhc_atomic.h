@@ -1,8 +1,18 @@
+/*
+ * Copyright (c) 2021-2023 Computer Architecture and VLSI Systems (CARV)
+ *                         Laboratory, ICS Forth. All rights reserved.
+ * $COPYRIGHT$
+ *
+ * Additional copyrights may follow
+ *
+ * $HEADER$
+ */
+
 #ifndef MCA_COLL_XHC_ATOMIC_EXPORT_H
 #define MCA_COLL_XHC_ATOMIC_EXPORT_H
 
 #include <stdint.h>
-#include <opal/sys/atomic.h>
+#include "opal/sys/atomic.h"
 
 // ----------------------------------------
 

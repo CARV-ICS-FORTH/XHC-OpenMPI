@@ -1,3 +1,13 @@
+/*
+ * Copyright (c) 2021-2023 Computer Architecture and VLSI Systems (CARV)
+ *                         Laboratory, ICS Forth. All rights reserved.
+ * $COPYRIGHT$
+ *
+ * Additional copyrights may follow
+ *
+ * $HEADER$
+ */
+
 #include "ompi_config.h"
 #include "mpi.h"
 
@@ -5,8 +15,6 @@
 #include "ompi/datatype/ompi_datatype.h"
 #include "ompi/communicator/communicator.h"
 #include "ompi/op/op.h"
-
-#include "ompi/mca/coll/base/base.h"
 
 #include "opal/mca/rcache/base/base.h"
 #include "opal/util/show_help.h"
@@ -692,6 +700,52 @@ int mca_coll_xhc_allreduce_internal(const void *sbuf, void *rbuf, int count,
 		if(ret != OMPI_SUCCESS) return ret;
 	}
 	
+	if(!ompi_datatype_is_predefined(datatype)) {
+		static bool warn_shown = false;
+		
+		if(!warn_shown) {
+			opal_output_verbose(MCA_BASE_VERBOSE_WARN,
+				ompi_coll_base_framework.framework_output,
+				"coll:xhc: Warning: XHC does not currently support "
+				"derived datatypes; utilizing fallback component");
+			warn_shown = true;
+		}
+		
+		xhc_coll_fns_t fallback = module->prev_colls;
+		
+		if(require_bcast) {
+			return fallback.coll_allreduce(sbuf, rbuf, count, datatype,
+				op, ompi_comm, fallback.coll_allreduce_module);
+		} else {
+			return fallback.coll_reduce(sbuf, rbuf, count, datatype,
+				op, 0, ompi_comm, fallback.coll_reduce_module);
+		}
+	}
+	
+	if(!ompi_op_is_commute(op)) {
+		static bool warn_shown = false;
+		
+		if(!warn_shown) {
+			opal_output_verbose(MCA_BASE_VERBOSE_WARN,
+				ompi_coll_base_framework.framework_output,
+				"coll:xhc: Warning: (all)reduce does not support non-commutative "
+				"operators; utilizing fallback component");
+			warn_shown = true;
+		}
+		
+		xhc_coll_fns_t fallback = module->prev_colls;
+		
+		if(require_bcast) {
+			return fallback.coll_allreduce(sbuf, rbuf, count, datatype,
+				op, ompi_comm, fallback.coll_allreduce_module);
+		} else {
+			return fallback.coll_reduce(sbuf, rbuf, count, datatype,
+				op, 0, ompi_comm, fallback.coll_reduce_module);
+		}
+	}
+	
+	// ----
+	
 	xhc_peer_info_t *peer_info = module->peer_info;
 	xhc_data_t *data = module->data;
 	
@@ -709,24 +763,6 @@ int mca_coll_xhc_allreduce_internal(const void *sbuf, void *rbuf, int count,
 	
 	// ----
 	
-	if(!ompi_op_is_commute(op)) {
-		static bool warn_shown = false;
-		
-		if(!warn_shown) {
-			opal_output_verbose(MCA_BASE_VERBOSE_WARN,
-			ompi_coll_base_framework.framework_output,
-			"coll:xhc: Warning: (all)reduce does not support non-commutative "
-			"operators; utilizing fallback component");
-			
-			warn_shown = true;
-		}
-		
-		xhc_coll_fns_t fallback = ((xhc_module_t *) module)->prev_colls;
-		
-		return fallback.coll_allreduce(sbuf, rbuf, count, datatype,
-			op, ompi_comm, fallback.coll_allreduce_module);
-	}
-	
 	switch(mca_coll_xhc_component.dynamic_reduce) {
 		case OMPI_XHC_DYNAMIC_REDUCE_DISABLED:
 			out_of_order_reduce = false;
@@ -742,6 +778,24 @@ int mca_coll_xhc_allreduce_internal(const void *sbuf, void *rbuf, int count,
 	}
 	
 	// ----
+	
+	// rbuf won't be present for non-root ranks in MPI_Reduce
+	if(rbuf == NULL && !do_cico) {
+		if(module->rbuf_size < bytes_total) {
+			void *tmp = realloc(module->rbuf, bytes_total);
+			
+			if(tmp != NULL) {
+				module->rbuf = tmp;
+				module->rbuf_size = bytes_total;
+			} else {
+				return OPAL_ERR_OUT_OF_RESOURCE;
+			}
+		}
+		
+		rbuf = module->rbuf;
+	}
+	
+	// ---
 	
 	xf_sig_t pvt_seq = ++data->pvt_coll_seq;
 	
@@ -999,17 +1053,6 @@ _finish:
 	
 	return OMPI_SUCCESS;
 }
-
-/* TODO Implement proper Reduce, by allocating internal intermediate buffers?
- * - HAN should signal that its buffer is already available. Is there a way
- *   to signal this?
- * - Can something like a memory pool be used for these internal buffers?
- *   What's up with Open MPI's mpool component? Could do something like
- *   reuest memory from mpool, which is cached? Could HAN do "hey mpool,
- *   here's some memory that is available for use, for this timeframe", and
- *   revoke it when returning from Allreduce?
- * - Will ofc have to function for root != 0; just something to keep in mind!
- */
 
 int mca_coll_xhc_allreduce(const void *sbuf, void *rbuf,
 		int count, ompi_datatype_t *datatype, ompi_op_t *op,

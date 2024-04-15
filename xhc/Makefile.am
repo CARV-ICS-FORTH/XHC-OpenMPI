@@ -1,3 +1,13 @@
+#
+# Copyright (c) 2021-2023 Computer Architecture and VLSI Systems (CARV)
+#                         Laboratory, ICS Forth. All rights reserved.
+# $COPYRIGHT$
+#
+# Additional copyrights may follow
+#
+# $HEADER$
+#
+
 dist_opaldata_DATA = help-coll-xhc.txt
 
 sources = \

@@ -1,3 +1,13 @@
+/*
+ * Copyright (c) 2021-2023 Computer Architecture and VLSI Systems (CARV)
+ *                         Laboratory, ICS Forth. All rights reserved.
+ * $COPYRIGHT$
+ *
+ * Additional copyrights may follow
+ *
+ * $HEADER$
+ */
+
 #include "ompi_config.h"
 
 #include <stdio.h>
@@ -37,6 +47,9 @@ static void xhc_module_clear(xhc_module_t *module) {
 	module->chunks = NULL;
 	module->chunks_len = 0;
 	
+	module->rbuf = NULL;
+	module->rbuf_size = 0;
+	
 	module->peer_info = NULL;
 	module->data = NULL;
 	module->init = false;
@@ -52,6 +65,7 @@ static void mca_coll_xhc_module_destruct(mca_coll_xhc_module_t *module) {
 	free(module->hierarchy_string);
 	free(module->hierarchy);
 	free(module->chunks);
+	free(module->rbuf);
 	free(module->peer_info);
 	
 	OBJ_RELEASE_IF_NOT_NULL(module->prev_colls.coll_allreduce_module);
@@ -213,6 +227,10 @@ int mca_coll_xhc_module_enable(mca_coll_base_module_t *ompi_module,
 		if(hier_info_flag)
 			hier_mca = hier_info->string;
 	}
+	
+	// Default to flat hierarchy if empty string was given
+	if(hier_mca == NULL)
+		hier_mca = "node";
 	
 	module->hierarchy_string = strdup(hier_mca);
 	
@@ -431,7 +449,7 @@ static int xhc_module_create_hierarchy(mca_coll_xhc_module_t *module,
 		if(my_def->rank_list) {
 			for(int i = 0; i < my_def->rank_list_len; i++) {
 				for(int r = my_def->rank_list[i].start_rank;
-						r <= my_def->rank_list[i].end_rank; r++) {
+						r <= my_def->rank_list[i].end_rank && r < comm_size; r++) {
 					if(r == rank)
 						member_id = members;
 					

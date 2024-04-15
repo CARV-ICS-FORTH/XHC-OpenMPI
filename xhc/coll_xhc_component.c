@@ -1,3 +1,13 @@
+/*
+ * Copyright (c) 2021-2023 Computer Architecture and VLSI Systems (CARV)
+ *                         Laboratory, ICS Forth. All rights reserved.
+ * $COPYRIGHT$
+ *
+ * Additional copyrights may follow
+ *
+ * $HEADER$
+ */
+
 #include "ompi_config.h"
 #include "mpi.h"
 
@@ -65,6 +75,9 @@ mca_coll_xhc_component_t mca_coll_xhc_component = {
 	.shmem_backing = NULL,
 	
 	.dynamic_leader = false,
+	
+	.barrier_root = 0,
+	
 	.dynamic_reduce = OMPI_XHC_DYNAMIC_REDUCE_NON_FLOAT,
 	.lb_reduce_leader_assist =
 		(OMPI_XHC_LB_RLA_TOP_LEVEL | OMPI_XHC_LB_RLA_FIRST_CHUNK),
@@ -140,9 +153,16 @@ static int xhc_register(void) {
 	/* Dynamic leader */
 	
 	(void) mca_base_component_var_register(&mca_coll_xhc_component.super.collm_version,
-		"dynamic_leader", "Enable dynamic operation-wise group-leader selection.",
+		"dynamic_leader", "Enable dynamic operation-wise group-leader selection",
 		MCA_BASE_VAR_TYPE_BOOL, NULL, 0, 0, OPAL_INFO_LVL_5,
 		MCA_BASE_VAR_SCOPE_READONLY, &mca_coll_xhc_component.dynamic_leader);
+	
+	/* Barrier root */
+	
+	(void) mca_base_component_var_register(&mca_coll_xhc_component.super.collm_version,
+		"barrier_root", "Internal root for the barrier operation (rank ID)",
+		MCA_BASE_VAR_TYPE_INT, NULL, 0, 0, OPAL_INFO_LVL_5,
+		MCA_BASE_VAR_SCOPE_READONLY, &mca_coll_xhc_component.barrier_root);
 	
 	/* Dynamic reduce */
 	
@@ -505,8 +525,8 @@ int xhc_component_parse_hierarchy(const char *val_str,
 	 * Finally, each such item may be suffixed by a special modifier:
 	 * 1. The split modifier (:<n>) specifies to group according to the
 	 *    locality it refers to, but to split each such group into multiple
-	 *    parts. E.g. the locality 'numa:2' will group ranks into half-numas
-	 *    group, such that for each NUMA node, half the ranks are in one
+	 *    parts. E.g. the locality 'numa:2' will group ranks into half-numa
+	 *    groups, such that for each NUMA node, half the ranks are in one
 	 *    group, and the rest are in another.
 	 * 2. The max-ranks modifier (?<n>) works similarly to the split modifier,
 	 *    only that it specifies that at most _n_ ranks should be placed in
@@ -522,10 +542,10 @@ int xhc_component_parse_hierarchy(const char *val_str,
 	 *   example, "numa", even though it is a single key, means to group
 	 *   all ranks that are in the same NUMA together, which will lead to
 	 *   multiple groups if multiple NUMA nodes are present. This is in
-	 *   contract to rank lists, which only create a single group, containing
+	 *   contrast to rank lists, which only create a single group, containing
 	 *   the ranks specified in it. The different items in the '+'-separated
 	 *   list are consumed in-order left-to-right, and any named localities
-	 *   are automatically repeated to apply all ranks that are not included
+	 *   are automatically repeated to apply to all ranks that are not included
 	 *   in other items. When multiple named localities are present one after
 	 *   the other, the last one is repeated, unless another repetition was
 	 *   explicitly requested via the repeat modifier.

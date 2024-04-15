@@ -1,3 +1,13 @@
+/*
+ * Copyright (c) 2021-2023 Computer Architecture and VLSI Systems (CARV)
+ *                         Laboratory, ICS Forth. All rights reserved.
+ * $COPYRIGHT$
+ *
+ * Additional copyrights may follow
+ *
+ * $HEADER$
+ */
+
 #include "ompi_config.h"
 #include "mpi.h"
 
@@ -71,7 +81,8 @@ int mca_coll_xhc_barrier(ompi_communicator_t *ompi_comm,
 	
 	xf_sig_t pvt_seq = ++data->pvt_coll_seq;
 	
-	xhc_barrier_leader(comms, comm_count, peer_info, rank, 0, pvt_seq);
+	xhc_barrier_leader(comms, comm_count, peer_info, rank,
+		mca_coll_xhc_component.barrier_root, pvt_seq);
 	
 	// 1. Upwards SEQ Wave
 	for(int i = 0; i < comm_count; i++) {

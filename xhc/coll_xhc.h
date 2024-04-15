@@ -1,3 +1,13 @@
+/*
+ * Copyright (c) 2021-2023 Computer Architecture and VLSI Systems (CARV)
+ *                         Laboratory, ICS Forth. All rights reserved.
+ * $COPYRIGHT$
+ *
+ * Additional copyrights may follow
+ *
+ * $HEADER$
+ */
+
 #ifndef MCA_COLL_XHC_EXPORT_H
 #define MCA_COLL_XHC_EXPORT_H
 
@@ -10,6 +20,7 @@
 
 #include "ompi/mca/mca.h"
 #include "ompi/mca/coll/coll.h"
+#include "ompi/mca/coll/base/base.h"
 #include "ompi/communicator/communicator.h"
 #include "ompi/datatype/ompi_datatype.h"
 #include "ompi/op/op.h"
@@ -38,7 +49,7 @@
 #define OMPI_XHC_ACK_WIN 0
 
 // Align to CPU cache line (portable way to obtain it?)
-#define OMPI_XHC_CTRL_ALIGN 64
+#define OMPI_XHC_ALIGN 64
 
 // Call opal_progress every this many ticks when busy-waiting
 #define OMPI_XHC_OPAL_PROGRESS_CYCLE 10000
@@ -145,6 +156,9 @@ struct mca_coll_xhc_component_t {
 	char *shmem_backing;
 	
 	bool dynamic_leader;
+	
+	int barrier_root;
+	
 	int dynamic_reduce;
 	int lb_reduce_leader_assist;
 	
@@ -178,6 +192,10 @@ struct mca_coll_xhc_module_t {
 	// list of requested chunk sizes, to be applied to comms
 	size_t *chunks;
 	int chunks_len;
+	
+	// temporary (private) internal buffer, for methods like Reduce
+	void *rbuf;
+	size_t rbuf_size;
 	
 	// xhc-specific info for every other rank in the comm
 	xhc_peer_info_t *peer_info;
@@ -270,6 +288,10 @@ struct xhc_comm_t {
 	
 	xhc_member_ctrl_t *my_member_ctrl; // = &member_ctrl[member_id]
 	xhc_member_info_t *my_member_info; // = &member_info[member_id]
+	
+	// ---
+	
+	xhc_comm_t *next, *prev;
 };
 
 struct xhc_comm_ctrl_t {
@@ -277,9 +299,9 @@ struct xhc_comm_ctrl_t {
 	
 	volatile xf_sig_t leader_seq;
 	
-	volatile xf_sig_t coll_ack __attribute__((aligned(OMPI_XHC_CTRL_ALIGN)));
+	volatile xf_sig_t coll_ack __attribute__((aligned(OMPI_XHC_ALIGN)));
 	
-	volatile xf_sig_t coll_seq __attribute__((aligned(OMPI_XHC_CTRL_ALIGN)));
+	volatile xf_sig_t coll_seq __attribute__((aligned(OMPI_XHC_ALIGN)));
 	
 	/* - Reason *NOT* to keep below fields in the same cache line as coll_seq:
 	 *   
@@ -309,13 +331,13 @@ struct xhc_comm_ctrl_t {
 	volatile xf_size_t bytes_ready;
 	
 	char access_token[];
-} __attribute__((aligned(OMPI_XHC_CTRL_ALIGN)));
+} __attribute__((aligned(OMPI_XHC_ALIGN)));
 
 struct xhc_member_ctrl_t {
 	volatile xf_sig_t member_ack; // written by member
 	
 	// written by member, at beginning of operation
-	volatile xf_sig_t member_seq __attribute__((aligned(OMPI_XHC_CTRL_ALIGN)));
+	volatile xf_sig_t member_seq __attribute__((aligned(OMPI_XHC_ALIGN)));
 	volatile int rank;
 	
 	void* volatile sbuf_vaddr;
@@ -325,7 +347,7 @@ struct xhc_member_ctrl_t {
 	// reduction progress counters, written by member
 	volatile xf_int_t reduce_ready;
 	volatile xf_int_t reduce_done;
-} __attribute__((aligned(OMPI_XHC_CTRL_ALIGN)));
+} __attribute__((aligned(OMPI_XHC_ALIGN)));
 
 struct xhc_reduce_queue_item_t {
 	opal_list_item_t super;

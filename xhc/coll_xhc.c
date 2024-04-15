@@ -1,3 +1,13 @@
+/*
+ * Copyright (c) 2021-2023 Computer Architecture and VLSI Systems (CARV)
+ *                         Laboratory, ICS Forth. All rights reserved.
+ * $COPYRIGHT$
+ *
+ * Additional copyrights may follow
+ *
+ * $HEADER$
+ */
+
 #include "ompi_config.h"
 
 #include "mpi.h"
@@ -80,8 +90,11 @@ int xhc_lazy_init(xhc_module_t *module, ompi_communicator_t *comm) {
 		if(!my_cico) RETURN_WITH_ERROR(return_code, OMPI_ERR_OUT_OF_RESOURCE, end);
 		
 		/* Manually "touch" to assert allocation in local NUMA node
-		 * (assuming linux's default firt-touch-alloc NUMA policy) */
+		 * (assuming linux's default first-touch-alloc NUMA policy) */
 		memset(my_cico, 0, OMPI_XHC_CICO_MAX);
+		
+		peer_info[rank].cico_ds = cico_ds;
+		peer_info[rank].cico_buffer = my_cico;
 		
 		ret = comm->c_coll->coll_allgather(&cico_ds,
 			sizeof(opal_shmem_ds_t), MPI_BYTE, peer_cico_ds,
@@ -90,10 +103,10 @@ int xhc_lazy_init(xhc_module_t *module, ompi_communicator_t *comm) {
 		if(ret != OMPI_SUCCESS)
 			RETURN_WITH_ERROR(return_code, ret, end);
 		
-		for(int r = 0; r < comm_size; r++)
+		for(int r = 0; r < comm_size; r++) {
+			if(r == rank) continue;
 			peer_info[r].cico_ds = peer_cico_ds[r];
-		
-		peer_info[rank].cico_buffer = my_cico;
+		}
 	}
 	
 	// ----
@@ -227,7 +240,10 @@ static int xhc_make_comms(ompi_communicator_t *ompi_comm,
 			.comm_ctrl = NULL,
 			.member_ctrl = NULL,
 			
-			.ctrl_ds = (opal_shmem_ds_t) {0}
+			.ctrl_ds = (opal_shmem_ds_t) {0},
+			
+			.next = NULL,
+			.prev = NULL
 		};
 		
 		// ----
@@ -318,23 +334,21 @@ static int xhc_make_comms(ompi_communicator_t *ompi_comm,
 		
 		// ----
 		
+		char *ctrl_base;
+		
 		// Create shared structs
 		if(ompi_rank == xc->manager_rank) {
 			size_t ctrl_len = sizeof(xhc_comm_ctrl_t) + smsc_reg_size
 				+ xc->size * sizeof(xhc_member_ctrl_t);
 			
-			char *ctrl_base = xhc_shmem_create(&xc->ctrl_ds, ctrl_len,
-				ompi_comm, "ctrl", comm_count);
+			ctrl_base = xhc_shmem_create(&xc->ctrl_ds,
+				ctrl_len, ompi_comm, "ctrl", comm_count);
 			if(ctrl_base == NULL)
 				RETURN_WITH_ERROR(return_code, OMPI_ERROR, comm_error);
 			
 			/* Manually "touch" to assert allocation in local NUMA node
-			* (assuming linux's default firt-touch-alloc NUMA policy) */
+			* (assuming linux's default first-touch-alloc NUMA policy) */
 			memset(ctrl_base, 0, ctrl_len);
-			
-			xc->comm_ctrl = (void *) ctrl_base;
-			xc->member_ctrl = (void *) (ctrl_base
-				+ sizeof(xhc_comm_ctrl_t) + smsc_reg_size);
 		}
 		
 		ret = ompi_comm->c_coll->coll_allgather(&xc->ctrl_ds,
@@ -348,19 +362,24 @@ static int xhc_make_comms(ompi_communicator_t *ompi_comm,
 		if(ompi_rank != xc->manager_rank) {
 			xc->ctrl_ds = comm_ctrl_ds[xc->manager_rank];
 			
-			char *ctrl_base = xhc_shmem_attach(&xc->ctrl_ds);
+			ctrl_base = xhc_shmem_attach(&xc->ctrl_ds);
 			if(ctrl_base == NULL)
 				RETURN_WITH_ERROR(return_code, OMPI_ERROR, comm_error);
-			
-			xc->comm_ctrl = (void *) ctrl_base;
-			xc->member_ctrl = (void *) (ctrl_base
-				+ sizeof(xhc_comm_ctrl_t) + smsc_reg_size);
 		}
+		
+		xc->comm_ctrl = (void *) ctrl_base;
+		xc->member_ctrl = (void *) (ctrl_base
+			+ sizeof(xhc_comm_ctrl_t) + smsc_reg_size);
 		
 		xc->my_member_ctrl = &xc->member_ctrl[xc->member_id];
 		xc->my_member_info = &xc->member_info[xc->member_id];
 		
 		// ----
+		
+		if(comm_count > 0) {
+			xc->prev = &comms[comm_count - 1];
+			xc->prev->next = xc;
+		}
 		
 		comm_count++;
 		
@@ -460,14 +479,15 @@ static void xhc_print_info(xhc_module_t *module,
 			"  dynamic leader '%s', dynamic reduce '%s'\n"
 			"  reduce load-balancing leader-assist '%s'\n"
 			"  allreduce uniform chunks '%s'%s\n"
-			"  CICO up until %zu bytes\n"
+			"  CICO up until %zu bytes, barrier root %d\n"
 			"------------------------------------------------\n",
 			comm->c_name, mca_coll_xhc_component.priority,
 			(mca_coll_xhc_component.dynamic_leader ? "ON" : "OFF"),
 			drval_str, lb_rla_str,
 			(mca_coll_xhc_component.uniform_chunks ? "ON" : "OFF"),
 			(mca_coll_xhc_component.uniform_chunks ? un_min_str : ""),
-			mca_coll_xhc_component.cico_max);
+			mca_coll_xhc_component.cico_max,
+			mca_coll_xhc_component.barrier_root);
 	}
 	
 	// TODO convert to opal_asprintf?
@@ -624,14 +644,6 @@ void *xhc_get_registration(xhc_peer_info_t *peer_info,
 	
 	if(smsc_ep == NULL)
 		return NULL;
-	
-	/* MCA_RCACHE_FLAGS_PERSIST will cause the registration to stick around.
-	 * Though actually, because smsc/xpmem initializes the ref count to 2,
-	 * as a means of keeping the registration around (instead of using the
-	 * flag), our flag here doesn't have much effect. If at some point we
-	 * would wish to actually detach memory in some or all cases, we should
-	 * either call the unmap method twice, or reach out to Open MPI devs and
-	 * inquire about the ref count. */
 	
 	void *local_ptr;
 	

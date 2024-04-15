@@ -1,3 +1,13 @@
+/*
+ * Copyright (c) 2021-2023 Computer Architecture and VLSI Systems (CARV)
+ *                         Laboratory, ICS Forth. All rights reserved.
+ * $COPYRIGHT$
+ *
+ * Additional copyrights may follow
+ *
+ * $HEADER$
+ */
+
 #include "ompi_config.h"
 #include "mpi.h"
 
@@ -168,6 +178,24 @@ int mca_coll_xhc_bcast(void *buf, int count, ompi_datatype_t *datatype, int root
 		int ret = xhc_lazy_init(module, ompi_comm);
 		if(ret != OMPI_SUCCESS) return ret;
 	}
+	
+	if(!ompi_datatype_is_predefined(datatype)) {
+		static bool warn_shown = false;
+		
+		if(!warn_shown) {
+			opal_output_verbose(MCA_BASE_VERBOSE_WARN,
+				ompi_coll_base_framework.framework_output,
+				"coll:xhc: Warning: XHC does not currently support "
+				"derived datatypes; utilizing fallback component");
+			warn_shown = true;
+		}
+		
+		xhc_coll_fns_t fallback = ((xhc_module_t *) module)->prev_colls;
+		return fallback.coll_bcast(buf, count, datatype, root,
+			ompi_comm, fallback.coll_bcast_module);
+	}
+	
+	// ----
 	
 	xhc_peer_info_t *peer_info = module->peer_info;
 	xhc_data_t *data = module->data;
