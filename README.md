@@ -16,7 +16,7 @@ See the README file in each respective directory for more information.
 
 ### Publications
 
-Publications related to XHC
+Publications related to XHC:
 
 1. **A framework for hierarchical single-copy MPI collectives on multicore nodes**,  
 *George Katevenis, Manolis Ploumidis, and Manolis Marazakis*,  
@@ -24,6 +24,16 @@ IEEE Cluster 2022, Heidelberg, Germany.
 https://ieeexplore.ieee.org/document/9912729
 
 	- See also the `ieee-cluster-22` branch in this repository.
+
+2. **Impact of Cache Coherence on the Performance of Shared-Memory based MPI Primitives:
+A Case Study for Broadcast on Intel Xeon Scalable Processors**,  
+*George Katevenis, Manolis Ploumidis, and Manolis Marazakis*,  
+ICPP 2023, Salt Lake City, Utah, USA.  
+https://doi.org/10.1145/3605573.3605616
+
+	- See also the `icpp-23` branch in this repository.
+
+
 
 ##  Acknowledgments
 
