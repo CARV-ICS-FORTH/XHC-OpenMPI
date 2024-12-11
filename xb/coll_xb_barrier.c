@@ -29,7 +29,7 @@ static int xb_lazy_init(mca_coll_xb_module_t *xb_module,
 	
 	const char *hmca = mca_coll_xb_component.hierarchy_mca;
 	if(hmca[0] != '\0') {
-		ret = opal_info_set(&info, "ompi_comm_coll_xhc_hierarchy", hmca);
+		ret = opal_info_set(&info, "ompi_comm_coll_xhc_barrier_hierarchy", hmca);
 		if(ret != OPAL_SUCCESS) { OBJ_DESTRUCT(&info); return -2; }
 	}
 	

@@ -14,7 +14,7 @@ static int xb_register(void);
 mca_coll_xb_component_t mca_coll_xb_component = {
 	.super = {
 		.collm_version = {
-			MCA_COLL_BASE_VERSION_2_4_0,
+			MCA_COLL_BASE_VERSION_3_0_0,
 			
 			.mca_component_name = "xb",
 			MCA_BASE_MAKE_VERSION(component, OMPI_MAJOR_VERSION,

@@ -54,5 +54,7 @@ mca_coll_base_module_t *mca_coll_xb_module_comm_query(
 int mca_coll_xb_module_enable(mca_coll_base_module_t *module,
 		struct ompi_communicator_t *comm) {
 	
+	MCA_COLL_INSTALL_API(comm, barrier, module->coll_barrier, module, "xb");
+	
 	return OMPI_SUCCESS;
 }
