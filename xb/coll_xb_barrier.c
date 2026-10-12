@@ -35,7 +35,7 @@ static int xb_lazy_init(mca_coll_xb_module_t *xb_module,
 	
 	// 3. Create dup comm, future barrier operations will be delegated to it
 	
-	ret = ompi_comm_dup_with_info(comm, &info, &xb_module->comm);
+	ret = ompi_comm_dup_with_info(comm, &info, &xb_module->comm, true);
 	
 	OBJ_DESTRUCT(&info);
 	

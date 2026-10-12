@@ -1,14 +1,16 @@
 #
-# Copyright (c) 2021-2024 Computer Architecture and VLSI Systems (CARV)
+# Copyright (c) 2021-2026 Computer Architecture and VLSI Systems (CARV)
 #                         Laboratory, ICS Forth. All rights reserved.
+# Copyright (c) 2025      Jeffrey M. Squyres.  All rights reserved.
 # $COPYRIGHT$
 #
 # Additional copyrights may follow
 #
 # $HEADER$
+# SPDX-License-Identifier: BSD-3-Clause-Open-MPI
 #
 
-dist_opaldata_DATA = help-coll-xhc.txt
+EXTRA_DIST = help-coll-xhc.txt
 
 sources = \
 	coll_xhc.h \
@@ -39,7 +41,7 @@ mcacomponentdir = $(ompilibdir)
 mcacomponent_LTLIBRARIES = $(component_install)
 mca_coll_xhc_la_SOURCES = $(sources)
 mca_coll_xhc_la_LDFLAGS = -module -avoid-version
-mca_coll_xhc_la_LIBADD = $(top_builddir)/ompi/lib@OMPI_LIBMPI_NAME@.la
+mca_coll_xhc_la_LIBADD = $(top_builddir)/ompi/libopen_mpi.la
 
 noinst_LTLIBRARIES = $(component_noinst)
 libmca_coll_xhc_la_SOURCES = $(sources)

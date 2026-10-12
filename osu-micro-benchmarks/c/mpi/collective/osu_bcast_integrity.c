@@ -72,6 +72,15 @@ int main(int argc, char *argv[])
     }
     set_buffer(buffer, options.accel, 1, options.max_message_size);
 
+    // Extra options
+    // -------------
+
+    char *env;
+    int root = 0;
+
+    if((env = getenv("ROOT")) != NULL)
+        root = atoi(env);
+
     print_preamble(rank);
 
     for(size=options.min_message_size; size <= options.max_message_size; size *= 2) {
@@ -82,7 +91,7 @@ int main(int argc, char *argv[])
 
         timer=0.0;
         for(i=0; i < options.iterations + options.skip ; i++) {
-			if(rank == 0) {
+			if(rank == root) {
 				for(k = 0; k < size; k++)
 					buffer[k] = (char) (uint8_t) (i + k);
 			} else
@@ -91,10 +100,10 @@ int main(int argc, char *argv[])
 			MPI_CHECK(MPI_Barrier(MPI_COMM_WORLD));
 			
             t_start = MPI_Wtime();
-            MPI_CHECK(MPI_Bcast(buffer, size, MPI_CHAR, 0, MPI_COMM_WORLD));
+            MPI_CHECK(MPI_Bcast(buffer, size, MPI_CHAR, root, MPI_COMM_WORLD));
             t_stop = MPI_Wtime();
             
-            if(rank != 0) {
+            if(rank != root) {
 				for(k = 0; k < size; k++)
 					assert((uint8_t) buffer[k] == (uint8_t) (i + k));
 			}

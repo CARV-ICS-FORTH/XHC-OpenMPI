@@ -36,6 +36,13 @@ int main(int argc, char *argv[])
         }
     }
 
+    // Extra options
+    // -------------
+
+    bool do_barriers = (getenv("OSU_MB_NO_BARRIER") == NULL);
+
+    // ---
+
     MPI_CHECK(MPI_Init(&argc, &argv));
     MPI_CHECK(MPI_Comm_rank(MPI_COMM_WORLD, &rank));
     MPI_CHECK(MPI_Comm_size(MPI_COMM_WORLD, &numprocs));
@@ -101,27 +108,29 @@ int main(int argc, char *argv[])
         timer=0.0;
         for(i=0; i < options.iterations + options.skip ; i++) {
             for(j = 0; j < size; j++)
-                sendbuf[j] = (i * (size + j)) * (rank + 1);
+                sendbuf[j] = (i * (size + j)) * (rank + 1) + 7;
 
-            MPI_CHECK(MPI_Barrier(MPI_COMM_WORLD));
+            if(do_barriers)
+                MPI_CHECK(MPI_Barrier(MPI_COMM_WORLD));
 
             t_start = MPI_Wtime();
             MPI_CHECK(MPI_Allreduce(sendbuf, recvbuf, size,
                 MPI_INT, MPI_SUM, MPI_COMM_WORLD));
             t_stop = MPI_Wtime();
 
-            MPI_CHECK(MPI_Barrier(MPI_COMM_WORLD));
+            if(do_barriers)
+                MPI_CHECK(MPI_Barrier(MPI_COMM_WORLD));
 
             if(i >= options.skip)
                 timer+=t_stop-t_start;
 
             for(j = 0; j< size; j++) {
                 // Sum of k for k in [1,n] is 1/2*k*(k+1)
-                int expected = (i * (size + j)) * (numprocs * (numprocs + 1) / 2);
+                int expected = (i * (size + j)) * (numprocs * (numprocs + 1) / 2) + 7 * numprocs;
                 int v = (int) recvbuf[j];
 
                 if(expected != v) {
-                    printf("Error: size = %zu, i = %d k = %d. Expected %d, got %d. sendbuf[%d] is %d\n",
+                    printf("Error: size = %zu, iter = %d index = %d. Expected %d, got %d. sendbuf[%d] is %d\n",
                         size * sizeof(int), i, j, expected, v, j, sendbuf[j]);
 
                     MPI_Finalize();

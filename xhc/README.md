@@ -17,7 +17,7 @@ integrated book-keeping.
 	- CPU Socket
 	- L1/L2/L3 cache
 	- Hwthread/core
-	- Node (all ranks *are* in same node --> flat, no hierarchy at all)
+	- Node/flat
 	
 	Example of a 3-level XHC hierarchy (numa+socket+node configuration):
 	
@@ -95,17 +95,18 @@ data is not yet prepared, instead of stalling. The default value auto-enables
 it when the data is of non-float type; setting to `2`=`enabled for all types`,
 might/will harm reproducibility of reductions with float types.
 
-* **reduce_load_balance** (default `0`=`non-leader`): Controls the
-leader-to-member load balancing mode in reductions. Under `non-leader`, the
-members, and not the leaders, perform reductions. With `top-level`, all members
-as well as the leader of the top-most level perform reductions. With
-`first-chunk`, leaders perform a single reduction on each level for a single
-chunk at the beginning of the operation. `top+first` combines `top-level` and
-`first-chunk`. Finally, with `all`, all ranks perform reductions equally.
+* **reduction_load_balance** (default `top,first`): Controls the
+leader-to-member load balancing mode in reductions. If the list is empty, only
+members perform reduction, and not the leaders. With `top`, the leader of the
+top level additionally performs reductions. With `first` , leaders perform a
+single reduction on each level, for just one chunk at the beginning of the
+operation. `top` and `first` are combinable. Finally, with `all` all ranks
+continuously perform reductions regardless of their leader status.
 
-* **hierarchy** (default `"numa,socket"`): A comma separated list of
-topological feature to which XHC's hierarchy-building algorithm should be
-sensitive. `ompi_info` reports the possible values for the parameter.
+* **hierarchy** (default `"numa,socket"` in bcast/barrier, `"l3,numa,socket"` in
+reduce/allreduce): A comma separated list of topological feature to which XHC's
+hierarchy-building algorithm should be sensitive. `ompi_info` reports the
+possible values for the parameter.
 	
 	- In some ways, this is "just" a suggestion. The resulting hierarchy may
 	not exactly match the requested one. Reasons that this will occur:
@@ -116,7 +117,7 @@ sensitive. `ompi_info` reports the possible values for the parameter.
 		
 		- No feature that all ranks have in common was provided. This a more
 		intrinsic detail, that you probably don't need to be aware of, but you
-		might come across if eg. you investigate the output of `print_info`. An
+		might come across if geg. you investigate the output of `print_info`. An
 		additional level will automatically be added in this case, no need to
 		worry about it.
 			
@@ -137,24 +138,17 @@ sensitive. `ompi_info` reports the possible values for the parameter.
 * **chunk_size** (default `16K`): The chunk size for the pipelining process.
 Data is processed (eg broadcast, reduced) in this-much sized pieces at once.
 	
-	- It's possible to have a different chunk size for each level of the
-	hierarchy, achieved via providing a comma-separated list of sizes (eg.
-	`"16K,16K,128K"`) instead of single one. The sizes in this list's *DO NOT*
-	correspond to the items on hierarchy list; the hierarchy keys might be
-	re-ordered or reduced to match the system, but the chunk sizes will be
-	consumed in the order they are given, left-to-right -> bottom-to-top.
+	- This may be a single size, or in the form of `min:max` (meaningful for
+	reduction collectives).
 
-* **uniform_chunks** (default `true`): Automatically optimize the chunk size
-in reduction collectives, according to the message size, so that all members
-will perform equal work.
-
-* **uniform_chunks_min** (default `1K`): The lowest allowed value for the chunk
-size when uniform chunks are enabled.
-
-* **cico_max** (default `1K`): Copy-in-copy-out, instead of single-copy, will
-be used for messages of *cico_max* or less bytes.
+* **cico_max** (default `256` in bcast, `4K` in reduce/allreduce):
+Copy-in-copy-out, instead of single-copy, will be used for messages of
+*cico_max* or less bytes.
 
 *(Removed Parameters)*
+
+* Multi-level **chunk size** support: Didn't observe any great performance
+	improvement, rolled back to reduce complexity.
 
 * **rcache_max**, **rcache_max_global** *(REMOVED with shift to opal/smsc)*:
 Limit to number of attachments that the registration cache should hold.
@@ -169,16 +163,12 @@ Limit to number of attachments that the registration cache should hold.
 	multi-node runs.
 
 - **Heterogeneity**: XHC does not support nodes with non-uniform (rank-wise)
-datatype representations. (determined according to Open MPI's `proc_arch`)
+datatype representations (determined according to Open MPI's `proc_arch`).
 
-- **Non-commutative** operators are not supported by XHC's reduction
-collectives. In past versions, they were, but only with a flat hierarchy; this
-could make a return at some point.
+- **Non-commutative** operators are not currently supported by XHC's reduction
+collectives.
 
-- **Derived Datatypes** are currently not supported.
-
-- XHC's Reduce currently only supports rank 0 as the root, and will
-automatically fall back to another component for other cases.
+- **Derived Datatypes** are not yet supported.
 
 ## Building
 
@@ -202,17 +192,17 @@ Apart from instructing Open MPI to include XPMEM support, the rest of the build
 process is standard. General information on building Open MPI can be found in
 its documentation.
 
-<https://www.open-mpi.org/doc/>  
-<https://www.open-mpi.org/faq/?category=building>  
+<https://www.open-mpi.org/doc/>\
+<https://www.open-mpi.org/faq/?category=building>\
 <https://github.com/open-mpi/ompi/blob/master/README.md>
 
 ## Running
 
-General information on running Open MPI jobs can be found here:  
-<https://www.open-mpi.org/faq/?category=running>  
+General information on running Open MPI jobs can be found here:\
+<https://www.open-mpi.org/faq/?category=running>\
 <https://docs.open-mpi.org/en/v5.0.x/launching-apps/index.html>
 
-`mpirun`'s man page will also be useful:  
+`mpirun`'s man page will also be useful:\
 <https://docs.open-mpi.org/en/v5.0.x/man-openmpi/man1/mpirun.1.html>
 
 In order for the XHC component to be chosen, its priority must be manually set
@@ -244,7 +234,7 @@ according to socket locality. See the `coll_xhc_hierarchy` param.
 * Optional: You might wish to tune XHC's chunk size (default `16K`). Use the
 `coll_xhc_chunk_size` param, and try values close to the default and see if
 improvements are observed.
-
+	
 	- Example: `--mca coll_xhc_chunk_size 16K`
 
 * Optional: If you wish to focus on latencies of small/medium size messages,
@@ -265,13 +255,13 @@ us know if it does :-).
 
 *Assuming `PATH` and `LD_LIBRARY_PATH` have been set appropriately.*
 
-Default XHC configuration:  
+Default XHC configuration:\
 `$ mpirun --mca coll_xhc_priority 100 --bind-to core <application>`
 
-XHC w/ numa-sensitive hierarchy, chunk size @ 16K:  
+XHC w/ numa-sensitive hierarchy, chunk size @ 16K:\
 `$ mpirun --mca coll_xhc_priority 100 --mca coll_xhc_hierarchy numa --mca coll_xhc_chunk_size 16K --bind-to core <application>`
 
-XHC with flat hierarchy (ie. none at all):  
+XHC with flat hierarchy (ie. none at all):\
 `$ mpirun --mca coll_xhc_priority 100 --mca coll_xhc_hierarchy node [--bind-to core] <application>`
 
 ## Benchmarking
@@ -337,10 +327,10 @@ In our fork of the OSU micro-benchmarks, you will also find
 "integrity-checking" variants (`_integrity` suffix). These can help verify that
 collective operations complete successfully without data corruption.
 
-Our OSU micro-benchmarks fork:  
+Our OSU micro-benchmarks fork:\
 <https://github.com/CARV-ICS-FORTH/XHC-OpenMPI/tree/xhc-fresh/osu-micro-benchmarks>
 
-The XB component:  
+The XB component:\
 <https://github.com/CARV-ICS-FORTH/XHC-OpenMPI/tree/xhc-fresh/xb>
 
 ### Applications
@@ -367,5 +357,5 @@ of MPI Broadcast.
 
 ---
 
-Contact: George Katevenis (gkatev@ics.forth.gr), Manolis Ploumidis (ploumid@ics.forth.gr)  
+Contact: George Katevenis (gkatev@ics.forth.gr), Manolis Ploumidis (ploumid@ics.forth.gr)\
 Computer Architecture and VLSI Systems (CARV) Laboratory, ICS Forth
